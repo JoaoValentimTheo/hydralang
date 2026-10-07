@@ -38,3 +38,7 @@ Hydra diagnostics use stable phase-oriented families. Codes are not reused for u
 | E9005 | CLI | Compiler returned neither HIR nor diagnostics |
 
 E9xxx diagnostics represent compiler invariants rather than ordinary user-program failures. Ordinary malformed source should terminate with an E1xxx-E4xxx diagnostic and must not require an E9xxx path.
+
+Diagnostics originating from source syntax or HIR evaluation carry a primary source span. Spans must remain within the originating UTF-8 source and on character boundaries. E4001 uses the first function span when one exists, or the empty start-of-source span for an empty program; E4002 points at `main`; call-depth, arithmetic, and step-budget failures point at the originating HIR expression/call span.
+
+Two deliberate edge policies are worth making explicit: a semicolon reports E1001 because it is not a 0.1 token, and direct `-9223372036854775808` reports E1102 because the positive literal token is parsed before unary negation and does not fit in `Int`.

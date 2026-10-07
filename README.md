@@ -32,7 +32,10 @@ cargo run -p hydra-cli -- check examples/hello.hyd
 
 Hydra does not use semicolons as ordinary statement separators. Mutability is explicit with `let mut`.
 
+The 0.1 semantic contract is intentionally small and explicit. `Int` is checked signed 64-bit integer arithmetic; `Float` follows Rust `f64`/IEEE behavior, including infinities and NaN. Ordinary assignment evaluates to `Unit`, `Never` is the bottom type for diverging control flow, and lexical lookup prefers locals, then user functions, then builtins. The only 0.1 builtins are `print(value)` and `println(value)`.
+
+The parser limits syntax nesting to 128 levels. The reference interpreter limits call depth to 128 frames and each execution to 1,000,000 evaluation steps. See `spec/` for the normative 0.1 language contract and `docs/ERROR_CODES.md` for structured diagnostics.
+
 ## License
 
 Licensed under either of Apache License 2.0 or MIT at your option.
-

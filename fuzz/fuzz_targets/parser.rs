@@ -10,6 +10,14 @@ fuzz_target!(|data: &[u8]| {
     if text.len() > 16 * 1024 {
         return;
     }
-    let lexed = hydra_lexer::lex(SourceId::new(0), text);
-    let _ = hydra_parser::parse(&lexed.tokens);
+    let source = SourceId::new(0);
+    let lexed = hydra_lexer::lex(source, text);
+    let parsed = hydra_parser::parse(&lexed.tokens);
+    for diagnostic in &parsed.diagnostics {
+        assert_eq!(diagnostic.primary.source, source);
+        assert!(diagnostic.primary.start <= diagnostic.primary.end);
+        assert!(diagnostic.primary.end <= text.len());
+        assert!(text.is_char_boundary(diagnostic.primary.start));
+        assert!(text.is_char_boundary(diagnostic.primary.end));
+    }
 });

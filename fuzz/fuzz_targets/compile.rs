@@ -9,5 +9,12 @@ fuzz_target!(|data: &[u8]| {
     if text.len() > 16 * 1024 {
         return;
     }
-    let _ = hydra_cli::compile("fuzz.hyd", text);
+    let compiled = hydra_cli::compile("fuzz.hyd", text);
+    assert_eq!(compiled.hir.is_some(), compiled.diagnostics.is_empty());
+    for diagnostic in &compiled.diagnostics {
+        assert!(diagnostic.primary.start <= diagnostic.primary.end);
+        assert!(diagnostic.primary.end <= text.len());
+        assert!(text.is_char_boundary(diagnostic.primary.start));
+        assert!(text.is_char_boundary(diagnostic.primary.end));
+    }
 });

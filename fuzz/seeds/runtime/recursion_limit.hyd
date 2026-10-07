@@ -1,0 +1,7 @@
+fn dive() {
+    dive()
+}
+
+fn main() {
+    dive()
+}

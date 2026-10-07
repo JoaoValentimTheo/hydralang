@@ -1,0 +1,9 @@
+fn choose() -> Int {
+    println({
+        return 7
+    })
+}
+
+fn main() {
+    println(choose())
+}

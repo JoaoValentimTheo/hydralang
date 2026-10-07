@@ -11,6 +11,13 @@ fuzz_target!(|data: &[u8]| {
     }
     let compiled = hydra_cli::compile("fuzz.hyd", text);
     if let Some(hir) = compiled.hir {
-        let _ = hydra_runtime::execute(&hir);
+        assert!(compiled.diagnostics.is_empty());
+        let result = hydra_runtime::execute(&hir);
+        for diagnostic in &result.diagnostics {
+            assert!(diagnostic.primary.start <= diagnostic.primary.end);
+            assert!(diagnostic.primary.end <= text.len());
+            assert!(text.is_char_boundary(diagnostic.primary.start));
+            assert!(text.is_char_boundary(diagnostic.primary.end));
+        }
     }
 });

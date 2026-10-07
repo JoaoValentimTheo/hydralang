@@ -13,7 +13,7 @@ jobs:
     name: fmt + clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install stable Rust
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
       - name: Formatting
@@ -25,7 +25,7 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install stable Rust
         run: rustup toolchain install stable --profile minimal
       - name: Test workspace
@@ -35,9 +35,29 @@ jobs:
     name: MSRV 1.85
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Install MSRV
         run: rustup toolchain install 1.85.0 --profile minimal
       - name: Check workspace on MSRV
         run: cargo +1.85.0 check --workspace
 
+  fuzz-smoke:
+    name: bounded fuzz smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install nightly Rust
+        run: rustup toolchain install nightly --profile minimal
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked --version 0.13.2
+      - name: Build fuzz targets
+        run: cargo +nightly fuzz build
+      - name: Lexer fuzz smoke
+        run: cargo +nightly fuzz run lexer fuzz/seeds/lexer -- -runs=256
+      - name: Parser fuzz smoke
+        run: cargo +nightly fuzz run parser fuzz/seeds/parser -- -runs=256
+      - name: Compile fuzz smoke
+        run: cargo +nightly fuzz run compile fuzz/seeds/compile -- -runs=128
+      - name: Runtime fuzz smoke
+        run: cargo +nightly fuzz run runtime fuzz/seeds/runtime -- -runs=64

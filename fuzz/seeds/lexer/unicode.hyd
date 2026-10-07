@@ -1,0 +1,4 @@
+fn main() {
+    let λ = "Hydra 中 🙂"
+    println(λ)
+}
