@@ -1,0 +1,8 @@
+fn main() {
+    let x: Float = 3.5
+    let flag = true && false
+    let message = "ok"
+    println(x)
+    println(flag)
+    println(message)
+}

@@ -8,7 +8,7 @@ use hydra_source::Span;
 use std::collections::BTreeMap;
 use std::fmt::{self, Write as _};
 
-const MAX_CALL_DEPTH: usize = 512;
+const MAX_CALL_DEPTH: usize = 128;
 const DEFAULT_STEP_BUDGET: u64 = 1_000_000;
 
 type RuntimeResult<T> = Result<T, Box<Diagnostic>>;
@@ -125,7 +125,7 @@ impl<'a> Interpreter<'a> {
         if self.call_depth >= MAX_CALL_DEPTH {
             return Err(self.runtime_error(
                 "E4003",
-                "maximum call depth of 512 exceeded",
+                "maximum call depth of 128 exceeded",
                 call_span,
             ));
         }

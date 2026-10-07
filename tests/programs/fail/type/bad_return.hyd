@@ -1,0 +1,6 @@
+fn wrong() -> Int {
+    return "wrong"
+}
+
+fn main() {
+}

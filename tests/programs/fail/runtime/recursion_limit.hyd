@@ -1,0 +1,7 @@
+fn recurse(n: Int) -> Int {
+    recurse(n + 1)
+}
+
+fn main() {
+    println(recurse(0))
+}

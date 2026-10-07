@@ -1,6 +1,6 @@
 # Hydra 0.1 Language Specification
 
-Status: **IN PROGRESS**.
+Status: **IMPLEMENTED for the Hydra 0.1 core subset**.
 
 Hydra is statically and strongly typed, null-free, deterministic, and explicit about mutability. Ordinary statements are separated by newlines; semicolons are not part of the 0.1 statement grammar.
 
@@ -8,5 +8,6 @@ The initial implemented semantic types are `Int`, `Float`, `Bool`, `String`, `Un
 
 Bindings use `let name = expr` or `let mut name = expr`. Immutable assignment is rejected during resolution. Functions use `fn name(param: Type) -> Type { ... }`; omission of a return annotation means `Unit`. Blocks evaluate to their final expression when present, otherwise `Unit`.
 
-Hydra 0.1 currently has no `null`, implicit numeric conversion, generics, traits, macros, package manager, or concurrency model.
+Lexical scopes permit nested shadowing but reject duplicate parameters or bindings in the same scope. Function arguments are evaluated left-to-right. `return` exits the current function, and control-flow expressions whose reachable branches all return have type `Never`.
 
+Hydra 0.1 currently has no `null`, implicit numeric conversion, generics, traits, macros, package manager, or concurrency model.

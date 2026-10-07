@@ -1,0 +1,6 @@
+fn duplicate(value: Int, value: Int) -> Int {
+    value
+}
+
+fn main() {
+}

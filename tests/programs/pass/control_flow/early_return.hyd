@@ -1,0 +1,8 @@
+fn value() -> Int {
+    return 7
+    println("unreachable")
+}
+
+fn main() {
+    println(value())
+}

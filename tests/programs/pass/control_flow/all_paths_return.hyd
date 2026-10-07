@@ -1,0 +1,12 @@
+fn value(flag: Bool) -> Int {
+    if flag {
+        return 1
+    } else {
+        return 2
+    }
+    println("unreachable")
+}
+
+fn main() {
+    println(value(true))
+}

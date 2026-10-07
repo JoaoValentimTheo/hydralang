@@ -1,0 +1,45 @@
+[package]
+name = "hydra-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+rust-version = "1.85"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+hydra-cli = { path = "../crates/hydra-cli" }
+hydra-lexer = { path = "../crates/hydra-lexer" }
+hydra-parser = { path = "../crates/hydra-parser" }
+hydra-runtime = { path = "../crates/hydra-runtime" }
+hydra-source = { path = "../crates/hydra-source" }
+
+[[bin]]
+name = "lexer"
+path = "fuzz_targets/lexer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parser"
+path = "fuzz_targets/parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "compile"
+path = "fuzz_targets/compile.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "runtime"
+path = "fuzz_targets/runtime.rs"
+test = false
+doc = false
+bench = false

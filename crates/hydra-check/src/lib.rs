@@ -154,17 +154,18 @@ impl<'a> Checker<'a> {
         let mut terminated = false;
         for stmt in &block.statements {
             let hir = self.check_stmt(stmt);
-            terminated = matches!(hir, HirStmt::Return { .. });
+            terminated |= stmt_diverges(&hir);
             statements.push(hir);
         }
         let tail = block
             .tail
             .as_ref()
             .map(|expr| Box::new(self.check_expr(expr)));
-        let ty = tail.as_ref().map_or_else(
-            || if terminated { Type::Never } else { Type::Unit },
-            |expr| expr.ty.clone(),
-        );
+        let ty = if terminated {
+            Type::Never
+        } else {
+            tail.as_ref().map_or(Type::Unit, |expr| expr.ty.clone())
+        };
         HirBlock {
             statements,
             tail,
@@ -569,6 +570,15 @@ impl<'a> Checker<'a> {
     fn internal(&mut self, message: &'static str, span: Span) {
         self.diagnostics
             .push(Diagnostic::error("E9003", Phase::Internal, message, span));
+    }
+}
+
+fn stmt_diverges(stmt: &HirStmt) -> bool {
+    match stmt {
+        HirStmt::Return { .. } => true,
+        HirStmt::Expr(expr) => expr.ty == Type::Never,
+        HirStmt::Let { init, .. } => init.ty == Type::Never,
+        HirStmt::While { condition, .. } => condition.ty == Type::Never,
     }
 }
 

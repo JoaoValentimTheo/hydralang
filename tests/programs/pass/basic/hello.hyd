@@ -1,0 +1,5 @@
+fn main() {
+    println("Hydra")
+    println(42)
+    println(true)
+}

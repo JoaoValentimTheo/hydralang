@@ -1,0 +1,6 @@
+fn main() {
+    let número = 42
+    let λ = "Hydra"
+    println(λ)
+    println(número)
+}

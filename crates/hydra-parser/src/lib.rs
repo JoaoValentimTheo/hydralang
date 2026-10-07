@@ -3,8 +3,10 @@ use hydra_ast::{
 };
 use hydra_diagnostics::{Diagnostic, Phase};
 use hydra_lexer::{Token, TokenKind};
-use hydra_source::Span;
+use hydra_source::{SourceId, Span};
 use std::mem::discriminant;
+
+const MAX_PARSE_DEPTH: usize = 128;
 
 #[derive(Debug)]
 pub struct ParseResult {
@@ -19,14 +21,28 @@ pub fn parse(tokens: &[Token]) -> ParseResult {
 struct Parser<'a> {
     tokens: &'a [Token],
     current: usize,
+    depth: usize,
+    synthetic_eof: Token,
     diagnostics: Vec<Diagnostic>,
 }
 
 impl<'a> Parser<'a> {
     fn new(tokens: &'a [Token]) -> Self {
+        let synthetic_eof = tokens.last().map_or_else(
+            || Token {
+                kind: TokenKind::Eof,
+                span: Span::empty(SourceId::new(0), 0),
+            },
+            |token| Token {
+                kind: TokenKind::Eof,
+                span: Span::empty(token.span.source, token.span.end),
+            },
+        );
         Self {
             tokens,
             current: 0,
+            depth: 0,
+            synthetic_eof,
             diagnostics: Vec::new(),
         }
     }
@@ -107,6 +123,10 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_block(&mut self) -> Option<Block> {
+        self.with_depth(Self::parse_block_inner)
+    }
+
+    fn parse_block_inner(&mut self) -> Option<Block> {
         let open = self.expect(&TokenKind::LeftBrace, "expected `{`")?.span;
         self.skip_newlines();
         let mut statements = Vec::new();
@@ -216,6 +236,10 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr(&mut self, min_binding_power: u8) -> Option<Expr> {
+        self.with_depth(|parser| parser.parse_expr_inner(min_binding_power))
+    }
+
+    fn parse_expr_inner(&mut self, min_binding_power: u8) -> Option<Expr> {
         let mut left = self.parse_prefix()?;
         loop {
             if self.at(&TokenKind::LeftParen) {
@@ -532,21 +556,38 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn with_depth<T>(&mut self, parse: impl FnOnce(&mut Self) -> Option<T>) -> Option<T> {
+        if self.depth >= MAX_PARSE_DEPTH {
+            let span = self.peek().span;
+            self.error(
+                "E1105",
+                "maximum syntax nesting depth of 128 exceeded",
+                span,
+            );
+            return None;
+        }
+        self.depth += 1;
+        let result = parse(self);
+        self.depth = self.depth.saturating_sub(1);
+        result
+    }
+
     fn at(&self, expected: &TokenKind) -> bool {
         discriminant(&self.peek().kind) == discriminant(expected)
     }
 
     fn peek(&self) -> &Token {
-        let index = self.current.min(self.tokens.len().saturating_sub(1));
-        &self.tokens[index]
+        self.tokens.get(self.current).unwrap_or(&self.synthetic_eof)
     }
 
     fn advance(&mut self) -> &Token {
-        let index = self.current.min(self.tokens.len().saturating_sub(1));
-        if self.current + 1 < self.tokens.len() {
+        if self.current < self.tokens.len() {
+            let index = self.current;
             self.current += 1;
+            &self.tokens[index]
+        } else {
+            &self.synthetic_eof
         }
-        &self.tokens[index]
     }
 
     fn error(&mut self, code: &'static str, message: impl Into<String>, span: Span) {
@@ -558,8 +599,8 @@ impl<'a> Parser<'a> {
 #[cfg(test)]
 mod tests {
     use super::parse;
-    use hydra_lexer::lex;
-    use hydra_source::SourceId;
+    use hydra_lexer::{Token, TokenKind, lex};
+    use hydra_source::{SourceId, Span};
 
     #[test]
     fn parses_function_and_tail_expression() {
@@ -579,5 +620,82 @@ mod tests {
         let parsed = parse(&lexed.tokens);
         assert!(!parsed.diagnostics.is_empty() || !lexed.diagnostics.is_empty());
         assert_eq!(parsed.program.functions.len(), 1);
+    }
+
+    #[test]
+    fn parser_tolerates_missing_eof_token() {
+        let source = SourceId::new(0);
+        let tokens = [Token {
+            kind: TokenKind::Fn,
+            span: Span::new(source, 0, 2),
+        }];
+        let parsed = parse(&tokens);
+        assert!(!parsed.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn parser_rejects_pathological_nesting_before_host_stack_exhaustion() {
+        let source = SourceId::new(0);
+        let nested = "(".repeat(256) + "1" + &")".repeat(256);
+        let text = format!("fn main() {{\n{nested}\n}}\n");
+        let lexed = lex(source, &text);
+        assert!(lexed.diagnostics.is_empty());
+        let parsed = parse(&lexed.tokens);
+        assert!(
+            parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "E1105"),
+            "{:?}",
+            parsed.diagnostics
+        );
+    }
+
+    #[test]
+    fn parser_reports_invalid_float_token() {
+        let source = SourceId::new(0);
+        let tokens = [
+            Token {
+                kind: TokenKind::Fn,
+                span: Span::new(source, 0, 2),
+            },
+            Token {
+                kind: TokenKind::Identifier("main".to_owned()),
+                span: Span::new(source, 3, 7),
+            },
+            Token {
+                kind: TokenKind::LeftParen,
+                span: Span::new(source, 7, 8),
+            },
+            Token {
+                kind: TokenKind::RightParen,
+                span: Span::new(source, 8, 9),
+            },
+            Token {
+                kind: TokenKind::LeftBrace,
+                span: Span::new(source, 10, 11),
+            },
+            Token {
+                kind: TokenKind::Float("not-a-float".to_owned()),
+                span: Span::new(source, 12, 23),
+            },
+            Token {
+                kind: TokenKind::RightBrace,
+                span: Span::new(source, 24, 25),
+            },
+            Token {
+                kind: TokenKind::Eof,
+                span: Span::empty(source, 25),
+            },
+        ];
+        let parsed = parse(&tokens);
+        assert!(
+            parsed
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == "E1103"),
+            "{:?}",
+            parsed.diagnostics
+        );
     }
 }

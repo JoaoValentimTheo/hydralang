@@ -1,0 +1,6 @@
+fn identity(value: Mystery) -> Mystery {
+    value
+}
+
+fn main() {
+}

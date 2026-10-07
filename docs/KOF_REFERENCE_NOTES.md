@@ -24,3 +24,6 @@ Hydra was designed independently. Kof4j is used only as a read-only architectura
 
 Reference inspected: `KofLang/Kof4j`, including repository layout, README architecture overview, golden tests, language-reference organization, and backend separation.
 
+## 0.1 closeout
+
+The comparison still supports Hydra's original boundary: keep one deterministic frontend and a backend-neutral typed HIR, while deferring Kof's broader backend and platform surface. No Kof-specific runtime or target abstraction is required to complete Hydra 0.1, and introducing one now would add coupling without strengthening the language contract.
