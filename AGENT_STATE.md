@@ -1,7 +1,7 @@
 # Agent State
 
 - Current repository checkpoint: branch `main`; the repository HEAD is the commit containing the latest version of this state file
-- Current milestone: H0-H14, H16, and H17 complete; H18 awaits the pushed closeout commit and GitHub Actions verification
+- Current milestone: Hydra 0.1 foundation H0-H14 and H16-H18 complete; H15 collections remains intentionally deferred
 - Branch: `main`
 - Rust edition: 2024
 - Declared and locally verified MSRV: 1.85.0
@@ -17,4 +17,4 @@
 - Validation floor: fmt, clippy with warnings denied, workspace all-features tests, MSRV check, fuzz build/smokes, and CLI hello check/run
 - Known limitations: no collections, modules/imports, algebraic data types, generics, closures/first-class functions, native/WASM backends, package tooling, LSP, REPL, or optimizer
 - Open risks: the 0.1 parser and interpreter intentionally use conservative fixed depth/resource limits; resource policy may need tuning as the language grows
-- Next engineering action: publish the coherent closeout commit to `main`, verify GitHub Actions on that commit, then mark H18 from remote evidence
+- Next engineering action: begin a new milestone only after choosing the next language surface; collections remain an explicit deferred decision rather than unfinished 0.1 foundation work

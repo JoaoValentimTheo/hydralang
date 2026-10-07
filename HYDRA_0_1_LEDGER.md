@@ -20,7 +20,7 @@
 | H15 — Collections | NOT STARTED | Intentionally deferred; the foundation program makes collections conditional on core stability and they are not part of the 0.1 feature floor |
 | H16 — Documentation reconciliation | COMPLETE | Language, lexical grammar, grammar, type system, execution model, complete diagnostic inventory, architecture, roadmap, Kof notes, state, and ledger reconciled with implementation |
 | H17 — Hydra 0.1 adversarial review | COMPLETE | Deep parser input, missing EOF, Unicode identifiers/strings, numeric/runtime guards, negative diagnostics, empty source, duplicate definitions/parameters, return/operand/arity typing, immutable assignment, `Never` joins, recursion/step limits, deterministic properties, and all four fuzz targets passed; two control-flow defects were found and regression-fixed |
-| H18 — Hydra 0.1 release candidate | IN PROGRESS | All local release-candidate gates pass; the coherent closeout commit, push, clean final worktree, and GitHub Actions verification remain |
+| H18 — Hydra 0.1 release candidate | COMPLETE | Closeout commit `4809388` was pushed to `main`; GitHub Actions CI run `37678326927` completed successfully after all local release-candidate gates passed |
 
 ## Current validation floor
 
@@ -33,4 +33,4 @@
 - `hydra check examples/hello.hyd` — PASS
 - `hydra run examples/hello.hyd` — PASS, output: `Hydra`
 
-Hydra 0.1 remains pre-release until H17 and H18 are closed by the final validation and CI evidence. No tag or release is required to complete the foundation gate.
+Hydra 0.1 foundation is complete. No tag or release was created as part of this gate.
