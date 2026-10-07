@@ -1,0 +1,7 @@
+fn main() {
+    {
+        let hidden = 7
+        println(hidden)
+    }
+    println(hidden)
+}

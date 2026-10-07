@@ -1,0 +1,5 @@
+fn main() {
+    let mut first = 0
+    let mut second = 0
+    first = second = 1
+}

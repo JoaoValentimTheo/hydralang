@@ -1,0 +1,46 @@
+fn main() {
+    println(later(41))
+    println(unit_value())
+    println(tail_value(5))
+    println(argument_order())
+    println(even(10))
+}
+
+fn later(value: Int) -> Int {
+    value + 1
+}
+
+fn unit_value() {
+}
+
+fn tail_value(value: Int) -> Int {
+    value + 1
+}
+
+fn select(first: Int, second: Int) -> Int {
+    first + second
+}
+
+fn argument_order() -> Int {
+    select({
+        return 7
+    }, {
+        return 8
+    })
+}
+
+fn even(value: Int) -> Bool {
+    if value == 0 {
+        true
+    } else {
+        odd(value - 1)
+    }
+}
+
+fn odd(value: Int) -> Bool {
+    if value == 0 {
+        false
+    } else {
+        even(value - 1)
+    }
+}

@@ -1,0 +1,11 @@
+fn main() {
+    println("")
+    println("Hydra " + "λ")
+    println("Hydra" == "Hydra")
+    println("Hydra" != "hydra")
+    println("line\nnext")
+    println("quote: \" slash: \\")
+    println(true && !false)
+    println(false || true)
+    println(!true)
+}

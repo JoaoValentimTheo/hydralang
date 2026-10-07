@@ -1,0 +1,11 @@
+fn descend(remaining: Int) -> Int {
+    if remaining == 0 {
+        0
+    } else {
+        descend(remaining - 1)
+    }
+}
+
+fn main() {
+    println(descend(127))
+}

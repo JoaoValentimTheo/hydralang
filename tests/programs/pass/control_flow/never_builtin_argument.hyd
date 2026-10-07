@@ -1,0 +1,9 @@
+fn f() {
+    println({
+        return
+    })
+}
+
+fn main() {
+    f()
+}

@@ -1,0 +1,10 @@
+fn choose(flag: Bool) -> Int {
+    if flag {
+        return 7
+    }
+    9
+}
+
+fn main() {
+    println(choose(true))
+}

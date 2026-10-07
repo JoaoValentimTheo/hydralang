@@ -1,0 +1,7 @@
+fn identity(value: Int) -> Int {
+    value
+}
+
+fn main() {
+    println(identity(true))
+}

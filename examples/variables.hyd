@@ -1,0 +1,6 @@
+fn main() {
+    let answer = 42
+    let name: String = "Hydra"
+    println(answer)
+    println(name)
+}

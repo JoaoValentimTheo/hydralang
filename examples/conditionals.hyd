@@ -1,0 +1,13 @@
+fn classify(value: Int) -> String {
+    if value < 0 {
+        "negative"
+    } else if value == 0 {
+        "zero"
+    } else {
+        "positive"
+    }
+}
+
+fn main() {
+    println(classify(42))
+}

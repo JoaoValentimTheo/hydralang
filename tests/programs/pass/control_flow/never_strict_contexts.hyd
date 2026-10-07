@@ -1,0 +1,61 @@
+fn take(value: Int) -> Int {
+    value
+}
+
+fn unary_context() -> Int {
+    -{
+        return 11
+    }
+}
+
+fn strict_lhs() -> Int {
+    {
+        return 12
+    } + 1
+}
+
+fn strict_rhs() -> Int {
+    1 + {
+        return 13
+    }
+}
+
+fn argument_context() -> Int {
+    take({
+        return 14
+    })
+}
+
+fn builtin_context() -> Int {
+    println({
+        return 15
+    })
+}
+
+fn assignment_context() -> Int {
+    let mut value = 0
+    value = {
+        return 16
+    }
+    value
+}
+
+fn if_condition_context() -> Int {
+    if {
+        return 17
+    } {
+        1
+    } else {
+        2
+    }
+}
+
+fn main() {
+    println(unary_context())
+    println(strict_lhs())
+    println(strict_rhs())
+    println(argument_context())
+    println(builtin_context())
+    println(assignment_context())
+    println(if_condition_context())
+}

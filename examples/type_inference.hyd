@@ -1,0 +1,12 @@
+fn main() {
+    let integer = 42
+    let float = 3.5
+    let boolean = true
+    let string = "hydra"
+    let unit = ()
+    println(integer)
+    println(float)
+    println(boolean)
+    println(string)
+    println(unit)
+}

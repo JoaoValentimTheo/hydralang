@@ -1,0 +1,25 @@
+fn echo(value: Int) -> Int {
+    value
+}
+
+fn main() {
+    let value = 1
+    {
+        let value = 2
+        println(value)
+    }
+    println(value)
+
+    let mut total = 10
+    {
+        total = total + 5
+    }
+    println(total)
+
+    {
+        let println = 7
+        print(println)
+        print("\n")
+    }
+    println(echo(9))
+}

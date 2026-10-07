@@ -1,0 +1,7 @@
+fn main() {
+    let answer = {
+        let base = 40
+        base + 2
+    }
+    println(answer)
+}

@@ -1,0 +1,5 @@
+fn main() {
+    println(!false)
+    println(false && (1 / 0 == 0))
+    println(true || (1 / 0 == 0))
+}

@@ -1,0 +1,11 @@
+fn main() {
+    println(1 + 2 * 3)
+    println((1 + 2) * 3)
+    println(20 - 5 - 3)
+    println(20 / 5 / 2)
+    println(1 < 2 == true)
+    println(true || false && false)
+    println(!true || true)
+    println(1 + 2 == 3)
+    println(-1 * 2)
+}

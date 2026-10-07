@@ -1,0 +1,7 @@
+fn add(left: Int, right: Int) -> Int {
+    left + right
+}
+
+fn main() {
+    println(add(20, 22))
+}

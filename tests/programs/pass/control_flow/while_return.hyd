@@ -1,0 +1,11 @@
+fn first(flag: Bool) -> Int {
+    while flag {
+        return 7
+    }
+    0
+}
+
+fn main() {
+    println(first(true))
+    println(first(false))
+}

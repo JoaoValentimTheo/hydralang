@@ -1,0 +1,11 @@
+fn main() {
+    let max = 9223372036854775807
+    let min = -9223372036854775807 - 1
+    println(0)
+    println(-1)
+    println(max)
+    println(min)
+    println(max - 1)
+    println(min + 1)
+    println(-5 % 2)
+}
