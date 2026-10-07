@@ -11,6 +11,8 @@ hydra-hir = { path = "../hydra-hir" }
 hydra-resolve = { path = "../hydra-resolve" }
 hydra-source = { path = "../hydra-source" }
 
+[dev-dependencies]
+hydra-types = { path = "../hydra-types" }
+
 [lints]
 workspace = true
-

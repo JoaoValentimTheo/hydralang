@@ -359,10 +359,11 @@ impl<'a> Parser<'a> {
             }
             TokenKind::LeftParen => {
                 self.skip_newlines();
-                if self.consume(&TokenKind::RightParen) {
+                if self.at(&TokenKind::RightParen) {
+                    let close = self.advance().span;
                     return Some(Expr {
                         kind: ExprKind::Literal(Literal::Unit),
-                        span: token.span,
+                        span: token.span.join(close).unwrap_or(token.span),
                     });
                 }
                 let mut expr = self.parse_expr(0)?;
@@ -697,5 +698,22 @@ mod tests {
             "{:?}",
             parsed.diagnostics
         );
+    }
+
+    #[test]
+    fn unit_literal_span_includes_both_parentheses() {
+        let source = SourceId::new(0);
+        let text = "fn main() {\n ()\n}\n";
+        let unit_start = text.rfind("()").expect("test source contains unit literal");
+        let lexed = lex(source, text);
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        let parsed = parse(&lexed.tokens);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let tail = parsed.program.functions[0]
+            .body
+            .tail
+            .as_deref()
+            .expect("unit literal should be the block tail");
+        assert_eq!(tail.span, Span::new(source, unit_start, unit_start + 2));
     }
 }

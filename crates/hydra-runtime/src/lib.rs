@@ -393,8 +393,12 @@ impl<'a> Interpreter<'a> {
     }
 
     fn call_builtin(&mut self, name: &str, args: Vec<Value>, span: Span) -> RuntimeResult<Value> {
-        let Some(value) = args.into_iter().next() else {
-            return Err(self.runtime_error("E9004", "builtin call has no argument", span));
+        let Ok([value]) = <Vec<Value> as TryInto<[Value; 1]>>::try_into(args) else {
+            return Err(self.runtime_error(
+                "E9004",
+                "HIR builtin call arity disagrees with builtin signature",
+                span,
+            ));
         };
         match name {
             "print" => {
@@ -442,4 +446,56 @@ fn checked_int(
     value
         .map(Value::Int)
         .ok_or_else(|| interpreter.runtime_error("E4004", "integer overflow", span))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::execute;
+    use hydra_hir::{
+        HirBlock, HirCallee, HirExpr, HirExprKind, HirFunction, HirLiteral, HirProgram,
+    };
+    use hydra_resolve::FunctionId;
+    use hydra_source::{SourceId, Span};
+    use hydra_types::Type;
+
+    fn literal_int(value: i64, span: Span) -> HirExpr {
+        HirExpr {
+            kind: HirExprKind::Literal(HirLiteral::Int(value)),
+            ty: Type::Int,
+            span,
+        }
+    }
+
+    #[test]
+    fn malformed_builtin_arity_is_rejected_as_invalid_hir() {
+        let span = Span::new(SourceId::new(0), 0, 1);
+        let call = HirExpr {
+            kind: HirExprKind::Call {
+                callee: HirCallee::Builtin("println".to_owned()),
+                args: vec![literal_int(1, span), literal_int(2, span)],
+            },
+            ty: Type::Unit,
+            span,
+        };
+        let program = HirProgram {
+            functions: vec![HirFunction {
+                id: FunctionId(0),
+                name: "main".to_owned(),
+                params: Vec::new(),
+                return_type: Type::Unit,
+                body: HirBlock {
+                    statements: Vec::new(),
+                    tail: Some(Box::new(call)),
+                    ty: Type::Unit,
+                    span,
+                },
+                span,
+            }],
+        };
+
+        let result = execute(&program);
+        assert_eq!(result.output, "");
+        assert_eq!(result.diagnostics.len(), 1);
+        assert_eq!(result.diagnostics[0].code, "E9004");
+    }
 }

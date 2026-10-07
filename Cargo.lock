@@ -92,6 +92,7 @@ dependencies = [
  "hydra-hir",
  "hydra-resolve",
  "hydra-source",
+ "hydra-types",
 ]
 
 [[package]]

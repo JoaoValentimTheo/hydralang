@@ -242,26 +242,30 @@ impl<'a> Checker<'a> {
             ExprKind::Name(_) => self.check_name(expr),
             ExprKind::Unary { op, operand } => {
                 let operand = self.check_expr(operand);
-                let ty = match op {
-                    UnaryOp::Negate if matches!(operand.ty, Type::Int | Type::Float) => {
-                        operand.ty.clone()
-                    }
-                    UnaryOp::Not if operand.ty == Type::Bool => Type::Bool,
-                    UnaryOp::Negate => {
-                        self.type_error(
-                            "E3003",
-                            format!("unary `-` requires Int or Float, found {}", operand.ty),
-                            expr.span,
-                        );
-                        Type::Unit
-                    }
-                    UnaryOp::Not => {
-                        self.type_error(
-                            "E3003",
-                            format!("unary `!` requires Bool, found {}", operand.ty),
-                            expr.span,
-                        );
-                        Type::Unit
+                let ty = if operand.ty == Type::Never {
+                    Type::Never
+                } else {
+                    match op {
+                        UnaryOp::Negate if matches!(operand.ty, Type::Int | Type::Float) => {
+                            operand.ty.clone()
+                        }
+                        UnaryOp::Not if operand.ty == Type::Bool => Type::Bool,
+                        UnaryOp::Negate => {
+                            self.type_error(
+                                "E3003",
+                                format!("unary `-` requires Int or Float, found {}", operand.ty),
+                                expr.span,
+                            );
+                            Type::Unit
+                        }
+                        UnaryOp::Not => {
+                            self.type_error(
+                                "E3003",
+                                format!("unary `!` requires Bool, found {}", operand.ty),
+                                expr.span,
+                            );
+                            Type::Unit
+                        }
                     }
                 };
                 HirExpr {
@@ -293,12 +297,17 @@ impl<'a> Checker<'a> {
                     Type::Unit
                 });
                 self.require_type(&value.ty, &expected, value.span, "assignment value");
+                let ty = if value.ty == Type::Never {
+                    Type::Never
+                } else {
+                    Type::Unit
+                };
                 HirExpr {
                     kind: HirExprKind::Assign {
                         symbol,
                         value: Box::new(value),
                     },
-                    ty: Type::Unit,
+                    ty,
                     span: expr.span,
                 }
             }
@@ -314,7 +323,9 @@ impl<'a> Checker<'a> {
                 let else_branch = else_branch
                     .as_ref()
                     .map(|branch| Box::new(self.check_expr(branch)));
-                let ty = if let Some(else_branch) = &else_branch {
+                let ty = if condition.ty == Type::Never {
+                    Type::Never
+                } else if let Some(else_branch) = &else_branch {
                     Type::join(&then_branch.ty, &else_branch.ty).unwrap_or_else(|| {
                         self.type_error(
                             "E3004",
@@ -425,12 +436,17 @@ impl<'a> Checker<'a> {
                 for (expected, actual) in signature.params.iter().zip(checked_args.iter()) {
                     self.require_type(&actual.ty, expected, actual.span, "function argument");
                 }
+                let return_type = if checked_args.iter().any(|arg| arg.ty == Type::Never) {
+                    Type::Never
+                } else {
+                    signature.return_type
+                };
                 HirExpr {
                     kind: HirExprKind::Call {
                         callee: HirCallee::Function(id),
                         args: checked_args,
                     },
-                    ty: signature.return_type,
+                    ty: return_type,
                     span,
                 }
             }
@@ -449,7 +465,12 @@ impl<'a> Checker<'a> {
                         BuiltinParam::Exact(expected) => compatible(&actual.ty, expected),
                         BuiltinParam::Printable => matches!(
                             actual.ty,
-                            Type::Int | Type::Float | Type::Bool | Type::String | Type::Unit
+                            Type::Int
+                                | Type::Float
+                                | Type::Bool
+                                | Type::String
+                                | Type::Unit
+                                | Type::Never
                         ),
                     };
                     if !valid {
@@ -463,12 +484,17 @@ impl<'a> Checker<'a> {
                         );
                     }
                 }
+                let return_type = if checked_args.iter().any(|arg| arg.ty == Type::Never) {
+                    Type::Never
+                } else {
+                    signature.return_type
+                };
                 HirExpr {
                     kind: HirExprKind::Call {
                         callee: HirCallee::Builtin(name),
                         args: checked_args,
                     },
-                    ty: signature.return_type,
+                    ty: return_type,
                     span,
                 }
             }
@@ -498,28 +524,30 @@ impl<'a> Checker<'a> {
     fn check_binary(&mut self, span: Span, left: &Expr, op: BinaryOp, right: &Expr) -> HirExpr {
         let left = self.check_expr(left);
         let right = self.check_expr(right);
-        let ty = match op {
-            BinaryOp::Add
-                if left.ty == right.ty
-                    && matches!(left.ty, Type::Int | Type::Float | Type::String) =>
-            {
-                left.ty.clone()
-            }
-            BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide | BinaryOp::Remainder
-                if left.ty == right.ty && matches!(left.ty, Type::Int | Type::Float) =>
-            {
-                left.ty.clone()
-            }
-            BinaryOp::Equal | BinaryOp::NotEqual if left.ty == right.ty => Type::Bool,
-            BinaryOp::Less | BinaryOp::LessEqual | BinaryOp::Greater | BinaryOp::GreaterEqual
-                if left.ty == right.ty && matches!(left.ty, Type::Int | Type::Float) =>
-            {
-                Type::Bool
-            }
-            BinaryOp::And | BinaryOp::Or if left.ty == Type::Bool && right.ty == Type::Bool => {
-                Type::Bool
-            }
-            _ => {
+        let ty = if left.ty == Type::Never {
+            let valid = match op {
+                BinaryOp::Add => matches!(
+                    right.ty,
+                    Type::Int | Type::Float | Type::String | Type::Never
+                ),
+                BinaryOp::Subtract
+                | BinaryOp::Multiply
+                | BinaryOp::Divide
+                | BinaryOp::Remainder
+                | BinaryOp::Less
+                | BinaryOp::LessEqual
+                | BinaryOp::Greater
+                | BinaryOp::GreaterEqual => {
+                    matches!(right.ty, Type::Int | Type::Float | Type::Never)
+                }
+                BinaryOp::Equal | BinaryOp::NotEqual => true,
+                BinaryOp::And | BinaryOp::Or => {
+                    matches!(right.ty, Type::Bool | Type::Never)
+                }
+            };
+            if valid {
+                Type::Never
+            } else {
                 self.type_error(
                     "E3003",
                     format!(
@@ -529,6 +557,81 @@ impl<'a> Checker<'a> {
                     span,
                 );
                 Type::Unit
+            }
+        } else if right.ty == Type::Never {
+            match op {
+                BinaryOp::Add if matches!(left.ty, Type::Int | Type::Float | Type::String) => {
+                    Type::Never
+                }
+                BinaryOp::Subtract
+                | BinaryOp::Multiply
+                | BinaryOp::Divide
+                | BinaryOp::Remainder
+                    if matches!(left.ty, Type::Int | Type::Float) =>
+                {
+                    Type::Never
+                }
+                BinaryOp::Equal | BinaryOp::NotEqual => Type::Never,
+                BinaryOp::Less
+                | BinaryOp::LessEqual
+                | BinaryOp::Greater
+                | BinaryOp::GreaterEqual
+                    if matches!(left.ty, Type::Int | Type::Float) =>
+                {
+                    Type::Never
+                }
+                BinaryOp::And | BinaryOp::Or if left.ty == Type::Bool => Type::Bool,
+                _ => {
+                    self.type_error(
+                        "E3003",
+                        format!(
+                            "operator {op:?} is not defined for {} and {}",
+                            left.ty, right.ty
+                        ),
+                        span,
+                    );
+                    Type::Unit
+                }
+            }
+        } else {
+            match op {
+                BinaryOp::Add
+                    if left.ty == right.ty
+                        && matches!(left.ty, Type::Int | Type::Float | Type::String) =>
+                {
+                    left.ty.clone()
+                }
+                BinaryOp::Subtract
+                | BinaryOp::Multiply
+                | BinaryOp::Divide
+                | BinaryOp::Remainder
+                    if left.ty == right.ty && matches!(left.ty, Type::Int | Type::Float) =>
+                {
+                    left.ty.clone()
+                }
+                BinaryOp::Equal | BinaryOp::NotEqual if left.ty == right.ty => Type::Bool,
+                BinaryOp::Less
+                | BinaryOp::LessEqual
+                | BinaryOp::Greater
+                | BinaryOp::GreaterEqual
+                    if left.ty == right.ty && matches!(left.ty, Type::Int | Type::Float) =>
+                {
+                    Type::Bool
+                }
+                BinaryOp::And | BinaryOp::Or if left.ty == Type::Bool && right.ty == Type::Bool => {
+                    Type::Bool
+                }
+                _ => {
+                    self.type_error(
+                        "E3003",
+                        format!(
+                            "operator {op:?} is not defined for {} and {}",
+                            left.ty, right.ty
+                        ),
+                        span,
+                    );
+                    Type::Unit
+                }
             }
         };
         HirExpr {
@@ -607,10 +710,39 @@ fn map_binary(op: BinaryOp) -> HirBinaryOp {
 #[cfg(test)]
 mod tests {
     use super::check;
+    use hydra_hir::HirProgram;
     use hydra_lexer::lex;
     use hydra_parser::parse;
     use hydra_resolve::resolve;
     use hydra_source::SourceId;
+    use hydra_types::Type;
+
+    fn check_source(source_text: &str) -> HirProgram {
+        let source = SourceId::new(0);
+        let lexed = lex(source, source_text);
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        let parsed = parse(&lexed.tokens);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let resolved = resolve(&parsed.program);
+        assert!(
+            resolved.diagnostics.is_empty(),
+            "{:?}",
+            resolved.diagnostics
+        );
+        let checked = check(&parsed.program, &resolved.resolution);
+        assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
+        checked.hir.expect("valid program should lower to HIR")
+    }
+
+    fn function_body_type(hir: &HirProgram, name: &str) -> Type {
+        hir.functions
+            .iter()
+            .find(|function| function.name == name)
+            .unwrap_or_else(|| panic!("missing function `{name}`"))
+            .body
+            .ty
+            .clone()
+    }
 
     #[test]
     fn lowers_typed_function_to_hir() {
@@ -621,5 +753,55 @@ mod tests {
         let checked = check(&parsed.program, &resolved.resolution);
         assert!(checked.diagnostics.is_empty(), "{:?}", checked.diagnostics);
         assert_eq!(checked.hir.as_ref().map(|hir| hir.functions.len()), Some(1));
+    }
+
+    #[test]
+    fn never_propagates_through_strict_expression_contexts() {
+        let cases = [
+            ("fn f() -> Int {\n -{ return 7 }\n}\n", "unary"),
+            ("fn f() -> Int {\n 1 + { return 7 }\n}\n", "binary rhs"),
+            ("fn f() -> Int {\n { return 7 } + 1\n}\n", "binary lhs"),
+            (
+                "fn id(x: Int) -> Int { x }\nfn f() -> Int {\n id({ return 7 })\n}\n",
+                "function argument",
+            ),
+            (
+                "fn f() -> Int {\n let mut x = 0\n x = { return 7 }\n}\n",
+                "assignment rhs",
+            ),
+            (
+                "fn f() -> Int {\n if { return 7 } { 1 } else { 2 }\n}\n",
+                "if condition",
+            ),
+        ];
+
+        for (source, context) in cases {
+            let hir = check_source(source);
+            assert_eq!(
+                function_body_type(&hir, "f"),
+                Type::Never,
+                "{context} should make the enclosing expression diverge"
+            );
+        }
+    }
+
+    #[test]
+    fn never_is_accepted_by_print_builtins_and_propagates() {
+        let hir = check_source(
+            "fn with_print() {\n print({ return })\n}\n\
+             fn with_println() {\n println({ return })\n}\n",
+        );
+        assert_eq!(function_body_type(&hir, "with_print"), Type::Never);
+        assert_eq!(function_body_type(&hir, "with_println"), Type::Never);
+    }
+
+    #[test]
+    fn short_circuit_rhs_never_keeps_boolean_expression_type() {
+        let hir = check_source(
+            "fn and_case(flag: Bool) -> Bool {\n flag && { return true }\n}\n\
+             fn or_case(flag: Bool) -> Bool {\n flag || { return false }\n}\n",
+        );
+        assert_eq!(function_body_type(&hir, "and_case"), Type::Bool);
+        assert_eq!(function_body_type(&hir, "or_case"), Type::Bool);
     }
 }
