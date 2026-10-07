@@ -23,7 +23,7 @@ This ledger tracks the semantic hardening campaign after completion of the Hydra
 | PF16 — CI hardening | COMPLETE | `actions/checkout` SHA-pinned to v4.2.2 commit; stable fmt/clippy/tests and MSRV 1.85 preserved; bounded nightly fuzz-smoke job added |
 | PF17 — Documentation/spec reconciliation | COMPLETE | README/spec/docs reconciled for precedence, newline/no-semicolon grammar, Never, assignment Unit, resolver precedence, integer/Float policies, builtins, and resource limits |
 | PF18 — Final falsification pass | COMPLETE | 14/14 final checks passed across all required combinations, including nested return/if, while return, recursion+overflow, short-circuit+runtime error, Unicode diagnostics, nested mutability, diverging args, same local names, malformed EOF, parse depth, call depth, and execution budget |
-| PF19 — Post-foundation verdict | IN PROGRESS | Required local gates, examples, fuzz build/smoke, and final falsification are green; coherent commit/push and green GitHub Actions on the resulting HEAD remain before PASS |
+| PF19 — Post-foundation verdict | COMPLETE | Required local gates, examples, fuzz build/smoke, and final falsification are green; GitHub Actions run `37687338037` succeeded on pushed audit HEAD `dbeb810e460c726c5e23336d03896f9844df7874` with fmt/clippy, tests, MSRV 1.85, and bounded fuzz smoke all green |
 
 ## Baseline facts
 
@@ -58,6 +58,13 @@ This ledger tracks the semantic hardening campaign after completion of the Hydra
 - `cargo +nightly fuzz build`: PASS
 - bounded fuzz smoke: lexer 256, parser 256, compile 128, runtime 64; no crashes/hangs
 - final PF18 falsification matrix: 14/14 checks passed
+
+## Remote closeout evidence
+
+- pushed audit HEAD: `dbeb810e460c726c5e23336d03896f9844df7874`
+- GitHub Actions run: `37687338037`
+- conclusion: SUCCESS
+- jobs: `fmt + clippy`, `test`, `MSRV 1.85`, and `bounded fuzz smoke` all succeeded
 
 ## Scope guard
 
