@@ -51,6 +51,7 @@ version = "0.1.0-dev"
 dependencies = [
  "hydra-resolve",
  "hydra-source",
+ "hydra-stdlib",
  "hydra-types",
 ]
 
@@ -92,6 +93,7 @@ dependencies = [
  "hydra-hir",
  "hydra-resolve",
  "hydra-source",
+ "hydra-stdlib",
  "hydra-types",
 ]
 

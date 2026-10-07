@@ -1,5 +1,6 @@
 use hydra_resolve::{FunctionId, SymbolId};
 use hydra_source::Span;
+use hydra_stdlib::BuiltinId;
 use hydra_types::Type;
 
 #[derive(Clone, Debug)]
@@ -92,7 +93,7 @@ pub enum HirExprKind {
 #[derive(Clone, Debug)]
 pub enum HirCallee {
     Function(FunctionId),
-    Builtin(String),
+    Builtin(BuiltinId),
 }
 
 #[derive(Clone, Debug, PartialEq)]

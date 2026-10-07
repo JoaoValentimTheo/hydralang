@@ -12,6 +12,7 @@ Hydra diagnostics use stable phase-oriented families. Codes are not reused for u
 | E1103 | Parser | Invalid floating-point literal |
 | E1104 | Parser | Invalid assignment target |
 | E1105 | Parser | Maximum syntax nesting depth exceeded |
+| E1106 | Parser | Maximum expression-tree depth exceeded |
 | E2001 | Resolution | Duplicate function declaration |
 | E2002 | Resolution | Duplicate local declaration or parameter in one scope |
 | E2004 | Resolution | Undefined name |

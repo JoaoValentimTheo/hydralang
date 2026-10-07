@@ -10,6 +10,7 @@ hydra-diagnostics = { path = "../hydra-diagnostics" }
 hydra-hir = { path = "../hydra-hir" }
 hydra-resolve = { path = "../hydra-resolve" }
 hydra-source = { path = "../hydra-source" }
+hydra-stdlib = { path = "../hydra-stdlib" }
 
 [dev-dependencies]
 hydra-types = { path = "../hydra-types" }

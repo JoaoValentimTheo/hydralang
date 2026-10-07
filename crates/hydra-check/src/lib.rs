@@ -450,15 +450,9 @@ impl<'a> Checker<'a> {
                     span,
                 }
             }
-            Some(ResolvedName::Builtin(name)) => {
-                let signature = hydra_stdlib::lookup(&name).unwrap_or_else(|| {
-                    self.internal("resolved builtin is absent from registry", callee.span);
-                    hydra_stdlib::BuiltinSignature {
-                        name: "<invalid>",
-                        params: Vec::new(),
-                        return_type: Type::Unit,
-                    }
-                });
+            Some(ResolvedName::Builtin(id)) => {
+                let signature = hydra_stdlib::signature(id);
+                let name = signature.name;
                 self.check_arity(signature.params.len(), checked_args.len(), span);
                 for (expected, actual) in signature.params.iter().zip(checked_args.iter()) {
                     let valid = match expected {
@@ -491,7 +485,7 @@ impl<'a> Checker<'a> {
                 };
                 HirExpr {
                     kind: HirExprKind::Call {
-                        callee: HirCallee::Builtin(name),
+                        callee: HirCallee::Builtin(id),
                         args: checked_args,
                     },
                     ty: return_type,
@@ -803,5 +797,38 @@ mod tests {
         );
         assert_eq!(function_body_type(&hir, "and_case"), Type::Bool);
         assert_eq!(function_body_type(&hir, "or_case"), Type::Bool);
+    }
+
+    #[test]
+    fn checker_function_state_resets_after_diverging_function() {
+        let hir = check_source(
+            "fn diverge(flag: Bool) -> Int {\n if flag { return 1 } else { return 2 }\n}\n\
+             fn ordinary() -> Int {\n let value = 2\n value + 3\n}\n",
+        );
+        assert_eq!(function_body_type(&hir, "diverge"), Type::Never);
+        assert_eq!(function_body_type(&hir, "ordinary"), Type::Int);
+    }
+
+    #[test]
+    fn checker_error_in_one_function_does_not_leak_into_the_next_function() {
+        let source = SourceId::new(0);
+        let lexed = lex(
+            source,
+            "fn broken() -> Bool {\n 1\n}\n\
+             fn valid() -> Int {\n let value = 2\n value + 3\n}\n",
+        );
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        let parsed = parse(&lexed.tokens);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let resolved = resolve(&parsed.program);
+        assert!(
+            resolved.diagnostics.is_empty(),
+            "{:?}",
+            resolved.diagnostics
+        );
+
+        let checked = check(&parsed.program, &resolved.resolution);
+        let codes: Vec<_> = checked.diagnostics.iter().map(|d| d.code).collect();
+        assert_eq!(codes, vec!["E3002"]);
     }
 }

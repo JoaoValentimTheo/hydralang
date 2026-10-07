@@ -5,6 +5,7 @@ use hydra_hir::{
 };
 use hydra_resolve::{FunctionId, SymbolId};
 use hydra_source::Span;
+use hydra_stdlib::BuiltinId;
 use std::collections::BTreeMap;
 use std::fmt::{self, Write as _};
 
@@ -122,13 +123,6 @@ impl<'a> Interpreter<'a> {
         args: Vec<Value>,
         call_span: Span,
     ) -> RuntimeResult<Value> {
-        if self.call_depth >= MAX_CALL_DEPTH {
-            return Err(self.runtime_error(
-                "E4003",
-                "maximum call depth of 128 exceeded",
-                call_span,
-            ));
-        }
         let Some(function) = self.function(id).cloned() else {
             return Err(self.runtime_error("E9004", "missing HIR function", call_span));
         };
@@ -136,6 +130,13 @@ impl<'a> Interpreter<'a> {
             return Err(self.runtime_error(
                 "E9004",
                 "HIR call arity disagrees with function signature",
+                call_span,
+            ));
+        }
+        if self.call_depth >= MAX_CALL_DEPTH {
+            return Err(self.runtime_error(
+                "E4003",
+                "maximum call depth of 128 exceeded",
                 call_span,
             ));
         }
@@ -299,7 +300,7 @@ impl<'a> Interpreter<'a> {
                 }
                 let value = match callee {
                     HirCallee::Function(id) => self.call_function(*id, values, expr.span)?,
-                    HirCallee::Builtin(name) => self.call_builtin(name, values, expr.span)?,
+                    HirCallee::Builtin(id) => self.call_builtin(*id, values, expr.span)?,
                 };
                 Ok(Flow::Value(value))
             }
@@ -392,24 +393,43 @@ impl<'a> Interpreter<'a> {
         }
     }
 
-    fn call_builtin(&mut self, name: &str, args: Vec<Value>, span: Span) -> RuntimeResult<Value> {
-        let Ok([value]) = <Vec<Value> as TryInto<[Value; 1]>>::try_into(args) else {
+    fn call_builtin(
+        &mut self,
+        id: BuiltinId,
+        args: Vec<Value>,
+        span: Span,
+    ) -> RuntimeResult<Value> {
+        let signature = hydra_stdlib::signature(id);
+        if args.len() != signature.params.len() {
             return Err(self.runtime_error(
                 "E9004",
                 "HIR builtin call arity disagrees with builtin signature",
                 span,
             ));
-        };
-        match name {
-            "print" => {
+        }
+        match id {
+            BuiltinId::Print => {
+                let Some(value) = args.into_iter().next() else {
+                    return Err(self.runtime_error(
+                        "E9004",
+                        "HIR builtin call arity disagrees with builtin signature",
+                        span,
+                    ));
+                };
                 let _ = write!(self.output, "{value}");
                 Ok(Value::Unit)
             }
-            "println" => {
+            BuiltinId::Println => {
+                let Some(value) = args.into_iter().next() else {
+                    return Err(self.runtime_error(
+                        "E9004",
+                        "HIR builtin call arity disagrees with builtin signature",
+                        span,
+                    ));
+                };
                 let _ = writeln!(self.output, "{value}");
                 Ok(Value::Unit)
             }
-            _ => Err(self.runtime_error("E9004", "unknown builtin in typed HIR", span)),
         }
     }
 
@@ -450,12 +470,13 @@ fn checked_int(
 
 #[cfg(test)]
 mod tests {
-    use super::execute;
+    use super::{Interpreter, Value, execute};
     use hydra_hir::{
         HirBlock, HirCallee, HirExpr, HirExprKind, HirFunction, HirLiteral, HirProgram,
     };
-    use hydra_resolve::FunctionId;
+    use hydra_resolve::{FunctionId, SymbolId};
     use hydra_source::{SourceId, Span};
+    use hydra_stdlib::BuiltinId;
     use hydra_types::Type;
 
     fn literal_int(value: i64, span: Span) -> HirExpr {
@@ -471,7 +492,7 @@ mod tests {
         let span = Span::new(SourceId::new(0), 0, 1);
         let call = HirExpr {
             kind: HirExprKind::Call {
-                callee: HirCallee::Builtin("println".to_owned()),
+                callee: HirCallee::Builtin(BuiltinId::Println),
                 args: vec![literal_int(1, span), literal_int(2, span)],
             },
             ty: Type::Unit,
@@ -497,5 +518,56 @@ mod tests {
         assert_eq!(result.output, "");
         assert_eq!(result.diagnostics.len(), 1);
         assert_eq!(result.diagnostics[0].code, "E9004");
+    }
+
+    #[test]
+    fn call_depth_is_restored_after_success_and_error() {
+        let span = Span::new(SourceId::new(0), 0, 1);
+        let good = HirFunction {
+            id: FunctionId(0),
+            name: "good".to_owned(),
+            params: Vec::new(),
+            return_type: Type::Int,
+            body: HirBlock {
+                statements: Vec::new(),
+                tail: Some(Box::new(literal_int(7, span))),
+                ty: Type::Int,
+                span,
+            },
+            span,
+        };
+        let bad = HirFunction {
+            id: FunctionId(1),
+            name: "bad".to_owned(),
+            params: Vec::new(),
+            return_type: Type::Int,
+            body: HirBlock {
+                statements: Vec::new(),
+                tail: Some(Box::new(HirExpr {
+                    kind: HirExprKind::Local(SymbolId(999)),
+                    ty: Type::Int,
+                    span,
+                })),
+                ty: Type::Int,
+                span,
+            },
+            span,
+        };
+        let program = HirProgram {
+            functions: vec![good, bad],
+        };
+        let mut interpreter = Interpreter::new(&program);
+
+        assert_eq!(
+            interpreter.call_function(FunctionId(0), Vec::new(), span),
+            Ok(Value::Int(7))
+        );
+        assert_eq!(interpreter.call_depth, 0);
+
+        let error = interpreter
+            .call_function(FunctionId(1), Vec::new(), span)
+            .expect_err("malformed HIR local should fail");
+        assert_eq!(error.code, "E9004");
+        assert_eq!(interpreter.call_depth, 0);
     }
 }

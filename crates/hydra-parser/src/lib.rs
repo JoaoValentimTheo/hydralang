@@ -7,6 +7,7 @@ use hydra_source::{SourceId, Span};
 use std::mem::discriminant;
 
 const MAX_PARSE_DEPTH: usize = 128;
+const MAX_EXPR_DEPTH: usize = 256;
 
 #[derive(Debug)]
 pub struct ParseResult {
@@ -241,6 +242,9 @@ impl<'a> Parser<'a> {
 
     fn parse_expr_inner(&mut self, min_binding_power: u8) -> Option<Expr> {
         let mut left = self.parse_prefix()?;
+        if !self.expression_depth_within_limit(&left) {
+            return None;
+        }
         loop {
             if self.at(&TokenKind::LeftParen) {
                 let call_power = 21;
@@ -248,6 +252,9 @@ impl<'a> Parser<'a> {
                     break;
                 }
                 left = self.finish_call(left)?;
+                if !self.expression_depth_within_limit(&left) {
+                    return None;
+                }
                 continue;
             }
 
@@ -271,6 +278,9 @@ impl<'a> Parser<'a> {
                     },
                     span,
                 };
+                if !self.expression_depth_within_limit(&left) {
+                    return None;
+                }
                 continue;
             }
 
@@ -294,8 +304,50 @@ impl<'a> Parser<'a> {
                 },
                 span,
             };
+            if !self.expression_depth_within_limit(&left) {
+                return None;
+            }
         }
         Some(left)
+    }
+
+    fn expression_depth_within_limit(&mut self, expr: &Expr) -> bool {
+        let mut stack = vec![(expr, 1_usize)];
+        while let Some((expr, depth)) = stack.pop() {
+            if depth > MAX_EXPR_DEPTH {
+                self.error(
+                    "E1106",
+                    "maximum expression tree depth of 256 exceeded",
+                    expr.span,
+                );
+                return false;
+            }
+            let child_depth = depth + 1;
+            match &expr.kind {
+                ExprKind::Unary { operand, .. } => stack.push((operand, child_depth)),
+                ExprKind::Binary { left, right, .. } => {
+                    stack.push((left, child_depth));
+                    stack.push((right, child_depth));
+                }
+                ExprKind::Assign { value, .. } => stack.push((value, child_depth)),
+                ExprKind::Call { callee, args } => {
+                    stack.push((callee, child_depth));
+                    stack.extend(args.iter().map(|arg| (arg, child_depth)));
+                }
+                ExprKind::If {
+                    condition,
+                    else_branch,
+                    ..
+                } => {
+                    stack.push((condition, child_depth));
+                    if let Some(else_branch) = else_branch {
+                        stack.push((else_branch, child_depth));
+                    }
+                }
+                ExprKind::Literal(_) | ExprKind::Name(_) | ExprKind::Block(_) => {}
+            }
+        }
+        true
     }
 
     fn parse_prefix(&mut self) -> Option<Expr> {
@@ -632,6 +684,35 @@ mod tests {
         }];
         let parsed = parse(&tokens);
         assert!(!parsed.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn malformed_input_without_physical_eof_has_bounded_recovery() {
+        let source = SourceId::new(0);
+        let tokens: Vec<_> = (0..512)
+            .map(|offset| Token {
+                kind: TokenKind::Identifier("junk".to_owned()),
+                span: Span::new(source, offset, offset + 1),
+            })
+            .collect();
+        let parsed = parse(&tokens);
+        assert_eq!(parsed.diagnostics.len(), 1);
+        assert!(parsed.program.functions.is_empty());
+    }
+
+    #[test]
+    fn rejects_pathological_left_deep_expression_before_host_stack_exhaustion() {
+        let source = SourceId::new(0);
+        let mut text = String::from("fn main() -> Int {\n1");
+        for _ in 0..1_024 {
+            text.push_str(" + 1");
+        }
+        text.push_str("\n}\n");
+
+        let lexed = lex(source, &text);
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        let parsed = parse(&lexed.tokens);
+        assert!(parsed.diagnostics.iter().any(|d| d.code == "E1106"));
     }
 
     #[test]

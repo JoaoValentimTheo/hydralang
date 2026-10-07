@@ -1,6 +1,7 @@
 use hydra_ast::{Block, Expr, ExprKind, Program, Stmt};
 use hydra_diagnostics::{Diagnostic, Phase};
 use hydra_source::Span;
+use hydra_stdlib::BuiltinId;
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -13,7 +14,7 @@ pub struct SymbolId(pub u32);
 pub enum ResolvedName {
     Local(SymbolId),
     Function(FunctionId),
-    Builtin(String),
+    Builtin(BuiltinId),
 }
 
 #[derive(Clone, Debug)]
@@ -282,7 +283,7 @@ impl Resolver {
         if let Some(id) = self.resolution.functions.get(name) {
             return Some(ResolvedName::Function(*id));
         }
-        hydra_stdlib::lookup(name).map(|builtin| ResolvedName::Builtin(builtin.name.to_owned()))
+        hydra_stdlib::lookup(name).map(|builtin| ResolvedName::Builtin(builtin.id))
     }
 
     fn lookup_local(&self, name: &str) -> Option<&SymbolInfo> {
@@ -313,5 +314,23 @@ mod tests {
         let parsed = parse(&lexed.tokens);
         let result = resolve(&parsed.program);
         assert!(result.diagnostics.iter().any(|d| d.code == "E2005"));
+    }
+
+    #[test]
+    fn function_and_nested_scope_state_do_not_leak() {
+        let source = SourceId::new(0);
+        let lexed = lex(
+            source,
+            "fn broken() {\n let x = 1\n let x = 2\n}\n\
+             fn valid() {\n let mut x = 1\n {\n  let mut x = 2\n  x = 3\n }\n x = 4\n}\n",
+        );
+        assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
+        let parsed = parse(&lexed.tokens);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+
+        let result = resolve(&parsed.program);
+        let codes: Vec<_> = result.diagnostics.iter().map(|d| d.code).collect();
+        assert_eq!(codes, vec!["E2002"]);
+        assert!(result.resolution.function("valid").is_some());
     }
 }

@@ -33,4 +33,4 @@ From loosest to tightest, expression precedence is:
 
 Binary operators are left-associative. Newlines delimit adjacent block entries, but the parser permits layout newlines inside parentheses and calls, before `else`, and after a binary operator while its right operand is still required. A semicolon is an unexpected character (E1001), not a statement separator. Two otherwise valid adjacent statements on one line without an allowed grammar boundary are rejected as syntax (E1101).
 
-The parser enforces a maximum recursive syntax nesting depth of 128 and reports E1105 before pathological input can consume the host stack.
+The parser enforces two independent structural guards before later recursive compiler phases consume the AST. Recursive syntax nesting is limited to 128 and reports E1105. Constructed expression-tree depth is limited to 256 and reports E1106; this second guard also covers long left-associative chains whose Pratt parsing itself does not become deeply recursive.
