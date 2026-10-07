@@ -1,0 +1,16 @@
+[package]
+name = "hydra-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+hydra-diagnostics = { path = "../hydra-diagnostics" }
+hydra-hir = { path = "../hydra-hir" }
+hydra-resolve = { path = "../hydra-resolve" }
+hydra-source = { path = "../hydra-source" }
+
+[lints]
+workspace = true
+

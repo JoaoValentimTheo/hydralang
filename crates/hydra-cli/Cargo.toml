@@ -1,0 +1,24 @@
+[package]
+name = "hydra-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+hydra-check = { path = "../hydra-check" }
+hydra-diagnostics = { path = "../hydra-diagnostics" }
+hydra-hir = { path = "../hydra-hir" }
+hydra-lexer = { path = "../hydra-lexer" }
+hydra-parser = { path = "../hydra-parser" }
+hydra-resolve = { path = "../hydra-resolve" }
+hydra-runtime = { path = "../hydra-runtime" }
+hydra-source = { path = "../hydra-source" }
+
+[[bin]]
+name = "hydra"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+

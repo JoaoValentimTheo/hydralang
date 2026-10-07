@@ -1,0 +1,22 @@
+[package]
+name = "hydra-check"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+hydra-ast = { path = "../hydra-ast" }
+hydra-diagnostics = { path = "../hydra-diagnostics" }
+hydra-hir = { path = "../hydra-hir" }
+hydra-resolve = { path = "../hydra-resolve" }
+hydra-source = { path = "../hydra-source" }
+hydra-stdlib = { path = "../hydra-stdlib" }
+hydra-types = { path = "../hydra-types" }
+
+[dev-dependencies]
+hydra-lexer = { path = "../hydra-lexer" }
+hydra-parser = { path = "../hydra-parser" }
+
+[lints]
+workspace = true

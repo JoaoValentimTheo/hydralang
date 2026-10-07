@@ -1,0 +1,16 @@
+[package]
+name = "hydra-parser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+hydra-ast = { path = "../hydra-ast" }
+hydra-diagnostics = { path = "../hydra-diagnostics" }
+hydra-lexer = { path = "../hydra-lexer" }
+hydra-source = { path = "../hydra-source" }
+
+[lints]
+workspace = true
+

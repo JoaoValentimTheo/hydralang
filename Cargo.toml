@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/hydra-source",
+    "crates/hydra-diagnostics",
+    "crates/hydra-lexer",
+    "crates/hydra-ast",
+    "crates/hydra-parser",
+    "crates/hydra-types",
+    "crates/hydra-stdlib",
+    "crates/hydra-resolve",
+    "crates/hydra-hir",
+    "crates/hydra-check",
+    "crates/hydra-runtime",
+    "crates/hydra-cli",
+]
+exclude = ["fuzz"]
+
+[workspace.package]
+version = "0.1.0-dev"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/JoaoValentimTheo/hydralang"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"

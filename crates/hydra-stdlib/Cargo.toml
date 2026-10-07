@@ -1,0 +1,13 @@
+[package]
+name = "hydra-stdlib"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+hydra-types = { path = "../hydra-types" }
+
+[lints]
+workspace = true
+

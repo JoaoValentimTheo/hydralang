@@ -1,0 +1,13 @@
+[package]
+name = "hydra-ast"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+hydra-source = { path = "../hydra-source" }
+
+[lints]
+workspace = true
+

@@ -1,0 +1,15 @@
+[package]
+name = "hydra-hir"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+hydra-resolve = { path = "../hydra-resolve" }
+hydra-source = { path = "../hydra-source" }
+hydra-types = { path = "../hydra-types" }
+
+[lints]
+workspace = true
+
