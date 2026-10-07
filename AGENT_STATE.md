@@ -1,7 +1,7 @@
 # Agent State
 
 - Current campaign: Hydra 0.1 baseline freeze, state-machine contract, and governance gate
-- Authoritative pre-freeze checkpoint: `2a4ea08e3b3856437ba2ccac2ebb776e374ecf92`; the frozen semantic implementation commit is recorded in `docs/BASELINE.md` after the freeze commit is created
+- Authoritative pre-freeze checkpoint: `2a4ea08e3b3856437ba2ccac2ebb776e374ecf92`; frozen semantic implementation commit: `22d8cf99f3f355e00c5bc5ae299d0b268e853394`
 - Prior milestone: Hydra 0.1 foundation and post-foundation audit complete; PF0-PF19 complete; H15 collections remains intentionally deferred
 - Branch: `main`
 - Rust edition: 2024

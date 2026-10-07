@@ -3,7 +3,7 @@
 Status: engineering baseline freeze in progress. No public Hydra release or compatibility tag exists.
 
 - Authoritative pre-freeze checkpoint: `2a4ea08e3b3856437ba2ccac2ebb776e374ecf92`
-- Frozen semantic implementation commit: `TO_BE_RECORDED_AFTER_FREEZE_COMMIT`
+- Frozen semantic implementation commit: `22d8cf99f3f355e00c5bc5ae299d0b268e853394`
 - Package version: `0.1.0-dev`
 - Rust edition: 2024
 - MSRV: Rust 1.85.0
