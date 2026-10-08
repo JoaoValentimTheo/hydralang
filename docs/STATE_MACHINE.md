@@ -58,6 +58,20 @@ The runtime's ordinary expression result is `Flow::Value(Value)`. `Flow::Return`
 
 Future `Break` and `Continue` can extend the same control-flow effect model without changing Hydra 0.1 today: the runtime flow representation can gain loop-control variants, loops can consume the variant targeted at themselves, and other expression/block layers can propagate it. The checker will then need a richer control-effect analysis than the current `Never`/statement-divergence summary so that loop exits and function returns are not conflated. This is known extension pressure, not a reason to implement those constructs in 0.1.
 
+### Hydra 0.2 accepted future transition (D001; implementation pending)
+
+The normative D001 pipeline adds a distinct control state at each existing layer:
+
+```text
+source break / continue statement
+-> checker validates enclosing while-body target and tracks distinct path effect
+-> dedicated typed HIR statement carrying source span
+-> runtime Flow::Break / Flow::Continue
+-> nearest eligible while consumes its own body effect
+```
+
+The checker tracks normal fallthrough, return, break, continue, and potential divergence separately from `Never`'s normal-value bottom typing. Only a `while` **body** introduces its loop target: while checking/evaluating a new `while` condition, the surrounding loop target remains active. Condition effects are propagated and must not be consumed by the new loop. Functions reset loop context and are barriers to escaped effects. Invalid typed HIR that escapes `Break` or `Continue` across a function boundary reports E9004 with the keyword span. Future runtime transitions must charge the existing per-iteration budget tick on `Continue` before reevaluating the condition (E4006 on exhaustion). These are **accepted future transitions**, not Hydra 0.1 implementation behavior.
+
 ## Function-call lifecycle
 
 For a user function, runtime execution follows this order:

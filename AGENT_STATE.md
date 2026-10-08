@@ -2,7 +2,7 @@
 
 - Hydra 0.1 baseline freeze: COMPLETE; Hydra 0.1 post-foundation audit: COMPLETE; Hydra 0.1 foundation: COMPLETE
 - Current repository checkpoint: the commit containing this reconciled state file
-- Hydra 0.2 implementation: NOT STARTED; H15 Collections: DEFERRED
+- Hydra 0.2 design gate: COMPLETE; selected family: `break` / `continue`; D001: ACCEPTED; normative contract: LOCKED; Hydra 0.2 implementation: NOT STARTED; H15 Collections: DEFERRED
 - Authoritative pre-freeze checkpoint: `2a4ea08e3b3856437ba2ccac2ebb776e374ecf92`; frozen semantic implementation commit: `22d8cf99f3f355e00c5bc5ae299d0b268e853394`
 - Completed foundation milestones: PF0-PF19
 - Branch: `main`
@@ -25,5 +25,5 @@
 - Governance: externally observable semantic changes require specification/decision/regression/compatibility/validation discipline from `docs/VERSIONING.md` and `docs/decisions/`
 - Prior action permitted at the 0.1 freeze: Hydra 0.2 design/decision work for one coherent feature family only. This state file does not authorize implementation; H15 Collections remains deferred
 - Hydra 0.2 first-family design gate: COMPLETE (`HYDRA_0_2_DESIGN_GATE.md`); selected family: control-flow extension (`break` / `continue`)
-- Hydra 0.2 first-family decision: `docs/decisions/001-loop-control.md`, PROPOSED — HUMAN APPROVAL REQUIRED; Hydra 0.2 implementation: NOT STARTED; H15 Collections: DEFERRED
-- Next permitted action after this design gate: human review/decision on D001. No implementation or normative spec change is authorized by a Proposed record.
+- Hydra 0.2 first-family decision: `docs/decisions/001-loop-control.md`, **ACCEPTED** after independent architectural review; normative contract **LOCKED** in `spec/` and `docs/ERROR_CODES.md`; acceptance ledger: `HYDRA_0_2_D001_ACCEPTANCE.md`
+- Next permitted action: a **separately authorized implementation campaign for D001 only**. This acceptance campaign does **not** authorize implementation. No feature family beyond `break` / `continue` is approved; H15 Collections remains DEFERRED.

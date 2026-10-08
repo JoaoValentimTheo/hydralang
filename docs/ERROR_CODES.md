@@ -26,6 +26,8 @@ Hydra diagnostics use stable phase-oriented families. Codes are not reused for u
 | E3007 | Type checking | Unsupported builtin argument type |
 | E3008 | Type checking | Calling a local value unsupported in 0.1 |
 | E3009 | Type checking | Function or builtin arity mismatch |
+| E3010 | Type checking | `break` outside an eligible enclosing `while` body (Hydra 0.2 reserved; implementation pending) |
+| E3011 | Type checking | `continue` outside an eligible enclosing `while` body (Hydra 0.2 reserved; implementation pending) |
 | E4001 | Runtime | Missing `main` function |
 | E4002 | Runtime | `main` declares parameters |
 | E4003 | Runtime | Maximum call depth exceeded |
@@ -39,6 +41,8 @@ Hydra diagnostics use stable phase-oriented families. Codes are not reused for u
 | E9005 | CLI | Compiler returned neither HIR nor diagnostics |
 
 E9xxx diagnostics represent compiler invariants rather than ordinary user-program failures. Ordinary malformed source should terminate with an E1xxx-E4xxx diagnostic and must not require an E9xxx path.
+
+For the accepted Hydra 0.2 loop-control extension, E3010 and E3011 are permanently reserved for placement violations, with the offending keyword as the primary span. Malformed `break`/`continue` syntax remains E1101; a loop-control effect escaping a function from malformed typed HIR remains internal E9004. Neither new checker diagnostic is emitted by the Hydra 0.1 implementation yet.
 
 Diagnostics originating from source syntax or HIR evaluation carry a primary source span. Spans must remain within the originating UTF-8 source and on character boundaries. E4001 uses the first function span when one exists, or the empty start-of-source span for an empty program; E4002 points at `main`; call-depth, arithmetic, and step-budget failures point at the originating HIR expression/call span.
 

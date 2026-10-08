@@ -1,11 +1,11 @@
 # D001: Value-less loop control for `while`
 
-- Status: **Proposed**
+- Status: **Accepted**
 - Date: 2026-10-08
 - Compatibility: **intentional breaking change** (two new reserved keywords; otherwise an additive control-flow extension)
 - Supersedes: none
 - Selected family: control-flow extension (`break` / `continue`) only
-- Human approval: **REQUIRED before specification or implementation**
+- Human approval: **GRANTED for normative specification on 2026-10-08**, after independent architectural review of the lexer, parser, AST, resolver, checker, `Never`, HIR, runtime `Flow`, state machine, execution budget, versioning, and diagnostics. Implementation requires separate authorization.
 
 ## Problem
 
@@ -78,7 +78,7 @@ Preserve existing left-to-right argument evaluation, strict operator order, `&&`
 
 - Parser: malformed `break`/`continue` forms or missing newline/`}` use existing **E1101** and standard parser progress/recovery rules.
 - Resolver: no duplicate loop-control diagnostic; traverses applicable AST but keeps lexical name-binding responsibility.
-- Checker: reserve **two distinct new E3xxx meanings**, `break outside any eligible while body` and `continue outside any eligible while body`. Allocate their concrete unused IDs in `docs/ERROR_CODES.md` **only after acceptance**. Attach primary span of the offending keyword; do not reuse E3006 etc.
+- Checker: **E3010** means `break` outside an eligible enclosing `while` body; **E3011** means `continue` outside an eligible enclosing `while` body. These IDs are reserved by this acceptance in `docs/ERROR_CODES.md`. Attach the offending keyword as the primary span; do not reuse E3006 etc.
 - Interpreter: malformed internal HIR whose control effect escapes a function boundary reports existing **E9004** with its originating keyword span (runtime flow may need a span, or carry it to the boundary). Valid source must never produce this diagnostic.
 
 ## Adversarial cases and exact results
@@ -111,7 +111,7 @@ Specific traps falsified by the design: combining all effects into `Never`; one 
 - Type system/checker: track lexical loop body context and the minimal sound effect summary across statements, expressions, `if`, strict vs short-circuit evaluation, and nested while; preserve unreachable-code checking; avoid a global `terminated` bool that confuses effects.
 - Typed HIR: add explicit `Break`/`Continue` statement variants and maintain typed expression semantics.
 - Runtime/backends: distinguish effects in `Flow`; propagate across blocks/expressions; consume only in the owning while body; prevent escape through function return; tick on continue; use E9004 for malformed internal HIR.
-- Diagnostics: assign distinct new E3xxx IDs for two source placement errors and tests for their spans; update error ledger; keep E1101/E9004 meanings intact.
+- Diagnostics: implement the reserved E3010/E3011 source placement errors and tests for their spans; keep E1101/E9004 meanings intact.
 - Documentation: only after acceptance, update the normative specs below and release/compatibility ledger as required by versioning policy.
 
 ## Testing obligations (implementation campaign, NOT now)
@@ -122,14 +122,14 @@ Positive: loop exit and repeat; nested blocks, `if` true/false branches, direct 
 
 **Intentional breaking change**, as defined by `docs/VERSIONING.md`: in 0.1 both `break` and `continue` are ordinary `TokenKind::Identifier`, usable as local/parameter/function names and expression references. Keyword reservation turns otherwise valid 0.1 programs into syntax errors and changes their diagnostic from success to E1101, or changes an invalid-usage diagnostic depending on context. These precise name collisions must be included in the future breaking-change ledger/tests. No other 0.1-valid program is intended to become invalid, change a runtime value/effect, or change its diagnostic. The accepted 0.1 tests remain the baseline for this guarantee. Valid new loop-control statements are additions; outside-loop statements will receive new source diagnostics. There is no published Hydra release or tag whose compatibility is silently being changed.
 
-## Required normative spec changes if accepted
+## Normative specifications locked by acceptance
 
-These are **required later**, not edits made by this Proposed decision:
+The 2026-10-08 human acceptance authorizes the following documentation-only normative updates. They describe Hydra 0.2's **accepted, unimplemented** contract, alongside the preserved implemented Hydra 0.1 contract:
 
 1. `spec/GRAMMAR.md`: `block-entry`, keyword list, `break-stmt`/`continue-stmt`, newline/brace boundary, operand/label prohibition, and reserved-identifier compatibility note.
 2. `spec/TYPE_SYSTEM.md`: placement rules, nearest-loop and inner-condition targeting, `while`'s `Unit` completion, `Never` as no-normal-value bottom type **separate from loop/function effects**, path-sensitive reachable-effect checking and unchanged unreachable-type-check policy; conditional and strict/short-circuit cases.
 3. `spec/EXECUTION_MODEL.md`: propagation/consumption of runtime Break/Continue, nested blocks/expressions/calls, condition vs body ownership, function barrier, E9004 malformed-HIR invariant and E4006 tick-on-continue requirements.
-4. `docs/ERROR_CODES.md`: new distinct checker diagnostics for the two placement violations and explicit spans; parser E1101 vs internal E9004 boundaries.
-5. `docs/BASELINE.md` / versioning ledger as appropriate: preserve the 0.1 historical baseline, record 0.2's accepted breaking keyword reservation in a *new* change record, and extend corpus/regressions without modifying frozen historical evidence.
+4. `docs/ERROR_CODES.md`: E3010/E3011 reservations with keyword spans; parser E1101 vs internal E9004 boundaries.
+5. `HYDRA_0_2_D001_ACCEPTANCE.md`: record the intentionally breaking keyword reservation without rewriting the historical Hydra 0.1 baseline. Corpus/regression extensions are required in the separately authorized implementation campaign.
 
-**Not accepted; not implemented; no normative specification has changed.**
+**Accepted after independent architectural review; normative contract locked; not implemented.** Acceptance neither authorizes Rust changes nor begins the D001 implementation campaign. H15 Collections remains deferred.
