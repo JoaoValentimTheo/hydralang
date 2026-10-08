@@ -17,7 +17,7 @@
 - Test architecture: unit tests plus 22 pass / 41 fail classified corpus programs and deterministic property suites over generated UTF-8/token streams
 - Examples: 14 runnable/checkable Hydra program files plus `examples/README.md`
 - Fuzzing: lexer, parser, compile-pipeline, and runtime targets; CI uses pinned `cargo-fuzz 0.13.2` with `nightly-2026-10-02`
-- Platform gate: Linux quality/tests/MSRV/fuzz plus stable workspace tests on macOS and Windows
+- Platform gate: GitHub Actions provides authoritative Linux quality/tests/MSRV and pinned-nightly/pinned-cargo-fuzz smoke gates, plus Windows stable workspace tests; native maintainer macOS validation is required via `./scripts/ci-macos.sh` (outside GitHub Actions)
 - Robustness/state-machine changes: synthetic EOF, 128-level recursive syntax guard (E1105), 256-level expression-tree guard (E1106), bounded recovery, per-function resolver/checker state reset, and call-depth restoration on runtime success/error paths
 - Validation floor: fmt, clippy with warnings denied, workspace all-features tests, MSRV check, pinned fuzz build/smokes, cross-platform CI, and CLI hello check/run
 - Known limitations: no collections, modules/imports, algebraic data types, generics, closures/first-class functions, native/WASM backends, package tooling, LSP, REPL, or optimizer
