@@ -2,7 +2,7 @@
 
 - Hydra 0.1 baseline freeze: COMPLETE; Hydra 0.1 post-foundation audit: COMPLETE; Hydra 0.1 foundation: COMPLETE
 - Current repository checkpoint: the commit containing this reconciled state file
-- Hydra 0.2 design gate: COMPLETE; selected family: `break` / `continue`; D001: ACCEPTED and IMPLEMENTED; normative contract: LOCKED; Hydra 0.2: IN PROGRESS; H15 Collections: DEFERRED
+- Hydra 0.2 design gate: COMPLETE; selected family: `break` / `continue`; D001: ACCEPTED, IMPLEMENTED, POST-IMPLEMENTATION AUDIT PASSED, FROZEN; normative contract: LOCKED; Hydra 0.2: IN PROGRESS; H15 Collections: DEFERRED
 - Authoritative pre-freeze checkpoint: `2a4ea08e3b3856437ba2ccac2ebb776e374ecf92`; frozen semantic implementation commit: `22d8cf99f3f355e00c5bc5ae299d0b268e853394`
 - Completed foundation milestones: PF0-PF19
 - Branch: `main`
@@ -27,5 +27,6 @@
 - Hydra 0.2 first-family design gate: COMPLETE (`HYDRA_0_2_DESIGN_GATE.md`); selected family: control-flow extension (`break` / `continue`)
 - Hydra 0.2 first-family decision: `docs/decisions/001-loop-control.md`, **ACCEPTED** after independent architectural review; normative contract **LOCKED** in `spec/` and `docs/ERROR_CODES.md`; acceptance ledger: `HYDRA_0_2_D001_ACCEPTANCE.md`
 - D001 implementation: COMPLETE locally, covering dedicated lexer/AST/parser/resolver/checker/HIR/interpreter handling, E3010/E3011 keyword diagnostics, malformed-HIR E9004 boundary protection, path-sensitive outcomes and bounded fuel-on-continue; evidence ledger: `HYDRA_0_2_D001_IMPLEMENTATION.md`.
+- D001 post-implementation audit: PASSED; semantic family FROZEN (record: `HYDRA_0_2_D001_FREEZE.md`; audit regression commit `8ab976c7abaa61b1c2e32e753834150a15575664`). Forty-seven Rust tests, 30 positive/49 negative corpus files, eight property-test functions, 35 valid/16 invalid D001 table cases, bounded pinned fuzz, and native macOS validation. The frozen family is separate from the still-in-progress Hydra 0.2 milestone.
 - Compatibility: reserving `break` and `continue` intentionally invalidates their former Hydra 0.1 identifier use; all other existing Hydra 0.1 regression programs must remain valid.
-- Governance: Hydra 0.2 is IN PROGRESS. No second feature family or D002 has been authorized; H15 Collections is DEFERRED; no 0.2 release/tag is approved.
+- Governance: Hydra 0.2 is IN PROGRESS. D001 is the only FROZEN 0.2 semantic family. D002 is NOT AUTHORIZED, the next family is NOT SELECTED, H15 Collections is DEFERRED, and no 0.2 release/tag is approved.
