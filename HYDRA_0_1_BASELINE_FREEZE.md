@@ -33,7 +33,7 @@ The frozen semantic implementation commit is recorded by the closeout update in 
 | G8 README | COMPLETE | README distinguishes the validated engineering baseline from a public tag/release and documents both parser structural limits. |
 | G9 fuzz reproducibility | COMPLETE | CI and `fuzz/README.md` pin `nightly-2026-10-02` and `cargo-fuzz 0.13.2`; advancing the nightly requires a dedicated maintenance change. |
 | G10 platform policy | COMPLETE | `docs/PLATFORMS.md` defines Linux quality/tests/MSRV/fuzz and stable full-workspace tests on macOS and Windows; CI contains the corresponding host matrix. |
-| G11 license presentation | COMPLETE LOCALLY | GitHub classified the pre-fix repository as `Other` / `NOASSERTION`. `LICENSE-APACHE` contained only the short notice; it was replaced with the canonical complete Apache License 2.0 text while preserving `MIT OR Apache-2.0`. Remote classification is rechecked after push. |
+| G11 license presentation | COMPLETE (REMOTE VERIFIED) | GitHub classified the pre-fix repository as `Other` / `NOASSERTION`. `LICENSE-APACHE` contained only the short notice; it was replaced with the canonical complete Apache License 2.0 text while preserving `MIT OR Apache-2.0`. After push, GitHub recognized `Apache-2.0`; declared project intent remains `MIT OR Apache-2.0`. |
 | G12 HIR extensibility | COMPLETE | `docs/HIR_EXTENSIBILITY.md` records confirmed pressure for control effects, collections, nominal identity/modules and optional future lower IR without implementing speculative abstractions. |
 | G13 0.2 decision queue | COMPLETE | `docs/HYDRA_0_2_DECISION_QUEUE.md` is explicitly design-only and separates List, Tuple, Set and optional fixed Array semantics. H15 remains deferred. |
 | G14 local validation | COMPLETE | All required local gates listed below passed before the freeze commit. Remote cross-platform CI is a final closeout condition after push. |
@@ -87,4 +87,14 @@ Local libFuzzer runs add discovered inputs to a supplied corpus directory. Those
 
 No List, Set, Tuple, Array, collection implementation, break/continue, structs/enums, modules/imports, generics, or other Hydra 0.2 language family was implemented. The only compiler changes are robustness/state-machine hardening and the stable builtin-identity boundary required by this freeze. H15 Collections remains deferred.
 
-The final synchronized HEAD, final remote CI run and final GitHub license-classification observation are reported after the closeout commit and push; they are deliberately not fabricated into a commit that precedes those observations.
+## Final remote closeout (before administrative reconciliation)
+
+- Observed `main` and `origin/main`: `1c0b45b997804a114c8c9f91cdef43561bbb4a1d` (synchronized, clean worktree).
+- Frozen semantic implementation commit: `22d8cf99f3f355e00c5bc5ae299d0b268e853394`.
+- Freeze CI run `37695672736`: `SUCCESS`, all six jobs green (`fmt + clippy`, `test`, `MSRV 1.85`, `bounded fuzz smoke`, `test (macos-latest)`, `test (windows-latest)`).
+- GitHub license classification: `Apache-2.0`; project licensing intent: `MIT OR Apache-2.0`.
+- No tags or GitHub releases. Hydra 0.1 engineering baseline freeze complete; no public Hydra 0.1 release.
+- H15 Collections: DEFERRED. Hydra 0.2 implementation: NOT STARTED.
+- `MAIN-BRANCH-PROTECTION`: **UNCONFIGURED / HUMAN DECISION**. GitHub reports `main` `protected: false`. CI is green and repository-local governance is established, but GitHub does not enforce branch protection. Protection may be desirable before multiple writers/agents or public collaboration. This external governance decision does not invalidate the Hydra 0.1 semantic baseline and is not compiler technical debt.
+
+This section records the authoritative remote freeze state *before* the documentation-only administrative commit. That later commit's own hash belongs in the final operator report, not in its committed contents.

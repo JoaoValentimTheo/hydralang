@@ -1,8 +1,10 @@
 # Agent State
 
-- Current campaign: Hydra 0.1 baseline freeze, state-machine contract, and governance gate
+- Hydra 0.1 baseline freeze: COMPLETE; Hydra 0.1 post-foundation audit: COMPLETE; Hydra 0.1 foundation: COMPLETE
+- Current repository checkpoint: the commit containing this reconciled state file
+- Hydra 0.2 implementation: NOT STARTED; H15 Collections: DEFERRED
 - Authoritative pre-freeze checkpoint: `2a4ea08e3b3856437ba2ccac2ebb776e374ecf92`; frozen semantic implementation commit: `22d8cf99f3f355e00c5bc5ae299d0b268e853394`
-- Prior milestone: Hydra 0.1 foundation and post-foundation audit complete; PF0-PF19 complete; H15 collections remains intentionally deferred
+- Completed foundation milestones: PF0-PF19
 - Branch: `main`
 - Rust edition: 2024
 - Declared and locally verified MSRV: 1.85.0
@@ -21,4 +23,4 @@
 - Known limitations: no collections, modules/imports, algebraic data types, generics, closures/first-class functions, native/WASM backends, package tooling, LSP, REPL, or optimizer
 - Open risks: recursive walkers rely on parser structural guards for source-derived AST/HIR; hand-fabricated adversarial HIR is outside the source-language trust boundary; fixed interpreter resource limits may need future tuning
 - Governance: externally observable semantic changes require specification/decision/regression/compatibility/validation discipline from `docs/VERSIONING.md` and `docs/decisions/`
-- Next permitted engineering action after this gate: Hydra 0.2 design/decision work for one coherent feature family only. No Hydra 0.2 implementation is authorized by this state file; H15 collections remains deferred
+- Next permitted action: Hydra 0.2 design/decision work for one coherent feature family only. This state file does not authorize implementation; H15 Collections remains deferred

@@ -1,6 +1,6 @@
 # Hydra 0.1 Semantic Baseline
 
-Status: engineering baseline freeze in progress. No public Hydra release or compatibility tag exists.
+Status: Hydra 0.1 engineering baseline freeze COMPLETE. No public Hydra release or compatibility tag exists.
 
 - Authoritative pre-freeze checkpoint: `2a4ea08e3b3856437ba2ccac2ebb776e374ecf92`
 - Frozen semantic implementation commit: `22d8cf99f3f355e00c5bc5ae299d0b268e853394`
