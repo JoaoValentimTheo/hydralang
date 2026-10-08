@@ -23,4 +23,7 @@
 - Known limitations: no collections, modules/imports, algebraic data types, generics, closures/first-class functions, native/WASM backends, package tooling, LSP, REPL, or optimizer
 - Open risks: recursive walkers rely on parser structural guards for source-derived AST/HIR; hand-fabricated adversarial HIR is outside the source-language trust boundary; fixed interpreter resource limits may need future tuning
 - Governance: externally observable semantic changes require specification/decision/regression/compatibility/validation discipline from `docs/VERSIONING.md` and `docs/decisions/`
-- Next permitted action: Hydra 0.2 design/decision work for one coherent feature family only. This state file does not authorize implementation; H15 Collections remains deferred
+- Prior action permitted at the 0.1 freeze: Hydra 0.2 design/decision work for one coherent feature family only. This state file does not authorize implementation; H15 Collections remains deferred
+- Hydra 0.2 first-family design gate: COMPLETE (`HYDRA_0_2_DESIGN_GATE.md`); selected family: control-flow extension (`break` / `continue`)
+- Hydra 0.2 first-family decision: `docs/decisions/001-loop-control.md`, PROPOSED — HUMAN APPROVAL REQUIRED; Hydra 0.2 implementation: NOT STARTED; H15 Collections: DEFERRED
+- Next permitted action after this design gate: human review/decision on D001. No implementation or normative spec change is authorized by a Proposed record.
