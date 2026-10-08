@@ -56,13 +56,23 @@ Boolean `&&` and `||` retain short-circuit evaluation. A right-hand loop effect 
 
 These rules lock the implemented and frozen D001 source-language semantics. No labels, value-carrying control, expression loops, generalized effect system or MIR/SSA change is accepted.
 
-## Hydra 0.2 D002 accepted structural tuple types — implementation pending
+## Hydra 0.2 D002 implemented structural tuple types
 
-Human acceptance on 2026-10-08 locks the following **normative future D002 semantics**; the current compiler has no tuple type, tuple expression or positional projection support. The frozen D001 type and path-effect behavior above remains implemented and unchanged.
+**2026-10-08 approved Option A amendment:** All tuple type trees, whether
+written or inferred, have maximum structural depth 64 on every path. A
+primitive has depth 0; `Tuple(fields)` has depth `1 + max(depth(fields))`;
+grouping adds zero. Parser E1105 owns written depth violations; checker E3014
+owns inferred violations, pointing to the constructing expression and giving
+actual and permitted depths. Checker traversal must account for shared type
+subtrees without exponential work. Locals, calls, returns, joins and projections
+cannot bypass this invariant. Preserve whole-expression `Never` and frozen
+D001 effect rules. The following normative semantics are implemented by D002.
+
+Human acceptance on 2026-10-08 locks the following **normative D002 semantics**; the compiler implements tuple types, expressions and positional projections. The frozen D001 type and path-effect behavior above remains implemented and unchanged.
 
 Tuple types are ordered, fixed-arity, heterogeneous structural products: `(Int, String)` equals only a tuple type with the same ordered element types and arity. Thus `(Int, String)` differs from `(String, Int)`, and `(Int,)` differs from `Int`. Nested forms such as `((Int, String), Bool)` are structural. `()` is `Unit`, `(T)` is grouping of type `T`, and `(T,)` is a singleton tuple type; `(Unit,)` differs from `Unit`. A trailing comma is permitted on nonempty tuple types. No nominal tuple name, tuple width conversion, variance, subtyping, numeric coercion, generic `Name<T>` application, or other collection family is introduced.
 
-The future `TypeExpr` representation must structurally distinguish primitive names, grouped types and tuples, with accurate spans. Tuple annotations may appear wherever a type is currently accepted, including parameter, return and local annotations. `let pair = (1, "ready")` independently infers `(Int, String)` in element source order. Annotations and inferred types use the same structural identity for parameters, assignments, returns and branch checking. `Type::join(Never, T) = T` applies at the **whole-expression** level; two ordinarily returning tuple types join only if structurally identical, otherwise the existing incompatible-branch/type-mismatch diagnostic applies. There is no elementwise tuple promotion or coercion.
+The `TypeExpr` representation structurally distinguishes primitive names, grouped types and tuples, with accurate spans. Tuple annotations may appear wherever a type is currently accepted, including parameter, return and local annotations. `let pair = (1, "ready")` independently infers `(Int, String)` in element source order. Annotations and inferred types use the same structural identity for parameters, assignments, returns and branch checking. `Type::join(Never, T) = T` applies at the **whole-expression** level; two ordinarily returning tuple types join only if structurally identical, otherwise the existing incompatible-branch/type-mismatch diagnostic applies. There is no elementwise tuple promotion or coercion.
 
 Tuple construction is strict left to right. Each element is statically checked even if earlier elements prevent execution; runtime evaluates only reachable elements. If an element has no normal completion, the **whole tuple expression** has normal-value type `Never` and preserves the particular D001 path effects (`Return`, `Break`, `Continue`, divergence) independently of its type. A declared structural `Tuple(..., Never, ...)` remains a well-formed but uninhabited element position; it is **not** the same type as whole-expression `Never`. Later elements contribute effects only on normal fallthrough paths, with exactly the frozen D001 sequence/effect rules.
 
@@ -70,4 +80,4 @@ Read-only `t.0` projection requires a normally valued tuple operand, and the che
 
 Two tuple expressions may use `==` and `!=` only for **identical static tuple types**, following the existing equality operand policy. Equality compares corresponding fields in order, stopping on the first inequality; `!=` is its negation. Nested Float fields retain IEEE semantics (`NaN != NaN`), including when aggregate storage is shared. Tuple `<`, `<=`, `>` and `>=` are invalid (E3003). An entire tuple argument to `print` or `println` is unsupported (existing E3007), because the builtins remain primitive-only; a projected printable primitive remains allowed. No tuple hash, total ordering, source formatting, destructuring or mutation contract is accepted.
 
-Parser checks cap tuple arity at **64** (E1101), tuple-type nesting at **64 tuple layers per path** (E1105), and preserve existing parser syntax/expression depth guards (E1105/E1106). Type traversal of adversarial internal structures must avoid unbounded host recursion. These are obligations for the separately authorized implementation campaign, not implemented features.
+Parser checks cap tuple arity at **64** (E1101), tuple-type nesting at **64 tuple layers per path** (E1105), and preserve existing parser syntax/expression depth guards (E1105/E1106). Type traversal of adversarial internal structures must avoid unbounded host recursion. Inferred tuple depth above 64 is checker E3014; the guards are implemented.

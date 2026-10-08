@@ -180,6 +180,12 @@ impl Resolver {
     fn resolve_expr(&mut self, expr: &Expr) {
         match &expr.kind {
             ExprKind::Literal(_) => {}
+            ExprKind::Tuple(elements) => {
+                for element in elements {
+                    self.resolve_expr(element);
+                }
+            }
+            ExprKind::Projection { base, .. } => self.resolve_expr(base),
             ExprKind::Name(name) => {
                 if let Some(resolved) = self.lookup(name) {
                     self.resolution

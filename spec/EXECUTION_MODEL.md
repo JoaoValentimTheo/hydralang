@@ -31,9 +31,16 @@ Every function call creates a loop-control boundary: valid source cannot transfe
 
 The deterministic **1,000,000-step** reference-interpreter budget stays in force. The existing per-iteration boundary `tick` is charged even when a loop body reaches `continue`, **before the next evaluation of the condition**. Therefore `while true { continue }` exhausts fuel with E4006 rather than evading the limit. `break` may exit without an additional iteration charge. No new budget limit was introduced by D001; see `HYDRA_0_2_D001_FREEZE.md`.
 
-## Hydra 0.2 D002 accepted tuple execution — implementation pending
+## Hydra 0.2 D002 implemented tuple execution
 
-The following is the **accepted, locked D002 runtime contract**, not current executable behavior. Tuple values are immutable, fixed-length, ordered and heterogeneous. Construction evaluates each element **once, in source order**, using D001's existing left-to-right strict evaluation. If an element transfers `Return`, `Break`, `Continue`, diverges or raises a runtime diagnostic, later elements do not execute, no partly built tuple becomes observable, and the original effect/diagnostic propagates unchanged. Projection evaluates its base first; a non-normal effect propagates before any field read.
+**2026-10-08 approved Option A amendment:** All successful checked HIR has
+tuple-type nesting ≤64 regardless of written or inferred origin. Written type
+violations are parser E1105; inferred violations are checker E3014 before
+executable HIR can be produced. Runtime E9004 remains a defense for malformed
+internal HIR, never the expected response to over-limit inferred source.
+The following runtime contract is implemented by D002.
+
+The following is the **accepted, locked and implemented D002 runtime contract**. Tuple values are immutable, fixed-length, ordered and heterogeneous. Construction evaluates each element **once, in source order**, using D001's existing left-to-right strict evaluation. If an element transfers `Return`, `Break`, `Continue`, diverges or raises a runtime diagnostic, later elements do not execute, no partly built tuple becomes observable, and the original effect/diagnostic propagates unchanged. Projection evaluates its base first; a non-normal effect propagates before any field read.
 
 Tuple construction snapshots each completed element's value under Hydra's value semantics. Rebinding a local afterward cannot change a previously created field. Reading, passing, returning and projecting a tuple must preserve **shared immutable aggregate storage** (e.g. `Rc<[Value]>` or an equivalent persistent representation); deep-copying a potentially exponentially expanded aggregate graph is prohibited. A projection retrieves a field value without introducing a mutable location, and source-created tuples cannot form cycles.
 
@@ -41,4 +48,4 @@ For equal static tuple types, `==` compares fields in index order and stops at t
 
 The `print` and `println` source builtins remain limited to their existing primitive printable argument types; an entire tuple is rejected during checking (E3007). A projected primitive may be printed. Internal Rust `Value::Display`, if necessary, may use only bounded, opaque, nonrecursive display such as `<tuple>`; this does not define a Hydra tuple formatting or serialization facility.
 
-Malformed typed HIR or internal values (non-tuple runtime projection, invalid index, type/value inconsistency or corrupt aggregate) must fail with source-spanned **E9004**, without unchecked indexing, unchecked recursion, panic or memory blowup. The future implementation must retain the source arity/depth guards and bounded adversarial traversal. The D001 flow states, existing scalar semantics, iteration charging and error unwinding remain unchanged. Tuple execution is not implemented, and separately authorized production changes are required.
+Malformed typed HIR or internal values (non-tuple runtime projection, invalid index, type/value inconsistency or corrupt aggregate) must fail with source-spanned **E9004**, without unchecked indexing, unchecked recursion, panic or memory blowup. The implementation retains source arity/depth guards and bounded adversarial traversal. The D001 flow states, existing scalar semantics, iteration charging and error unwinding remain unchanged. Tuple execution is implemented and locally validated; adversarial freeze remains pending.

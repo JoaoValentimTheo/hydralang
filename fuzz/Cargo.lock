@@ -143,6 +143,7 @@ dependencies = [
  "hydra-resolve",
  "hydra-source",
  "hydra-stdlib",
+ "hydra-types",
 ]
 
 [[package]]

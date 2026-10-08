@@ -1,4 +1,6 @@
-use hydra_ast::{BinaryOp, Block, Expr, ExprKind, Literal, Program, Stmt, TypeExpr, UnaryOp};
+use hydra_ast::{
+    BinaryOp, Block, Expr, ExprKind, Literal, Program, Stmt, TypeExpr, TypeExprKind, UnaryOp,
+};
 use hydra_diagnostics::{Diagnostic, Phase};
 use hydra_hir::{
     HirBinaryOp, HirBlock, HirCallee, HirExpr, HirExprKind, HirFunction, HirLiteral, HirParam,
@@ -9,6 +11,8 @@ use hydra_source::Span;
 use hydra_stdlib::BuiltinParam;
 use hydra_types::Type;
 use std::collections::BTreeMap;
+
+const MAX_TUPLE_TYPE_NESTING: usize = 64;
 
 #[derive(Debug)]
 pub struct CheckResult {
@@ -116,6 +120,10 @@ fn stmt_outcome(stmt: &HirStmt) -> Outcome {
 fn expr_outcome(expr: &HirExpr) -> Outcome {
     match &expr.kind {
         HirExprKind::Literal(_) | HirExprKind::Local(_) => Outcome::NORMAL,
+        HirExprKind::Tuple(fields) => fields.iter().fold(Outcome::NORMAL, |outcome, field| {
+            outcome.then(expr_outcome(field))
+        }),
+        HirExprKind::Projection { base, .. } => expr_outcome(base),
         HirExprKind::Unary { operand, .. } => expr_outcome(operand),
         HirExprKind::Assign { value, .. } => expr_outcome(value),
         HirExprKind::Binary { left, op, right } => {
@@ -299,16 +307,27 @@ impl<'a> Checker<'a> {
     }
 
     fn type_from_expr(&mut self, ty: &TypeExpr) -> Type {
-        if let Some(ty) = Type::from_name(&ty.name) {
-            ty
-        } else {
-            self.diagnostics.push(Diagnostic::error(
-                "E3001",
-                Phase::Type,
-                format!("unknown type `{}`", ty.name),
-                ty.span,
-            ));
-            Type::Unit
+        match &ty.kind {
+            TypeExprKind::Unit => Type::Unit,
+            TypeExprKind::Tuple(fields) => Type::tuple(
+                fields
+                    .iter()
+                    .map(|field| self.type_from_expr(field))
+                    .collect(),
+            ),
+            TypeExprKind::Name(name) => {
+                if let Some(ty) = Type::from_name(name) {
+                    ty
+                } else {
+                    self.diagnostics.push(Diagnostic::error(
+                        "E3001",
+                        Phase::Type,
+                        format!("unknown type `{name}`"),
+                        ty.span,
+                    ));
+                    Type::Unit
+                }
+            }
         }
     }
 
@@ -420,6 +439,72 @@ impl<'a> Checker<'a> {
         match &expr.kind {
             ExprKind::Literal(literal) => self.check_literal(literal, expr.span),
             ExprKind::Name(_) => self.check_name(expr),
+            ExprKind::Tuple(elements) => {
+                let fields: Vec<_> = elements
+                    .iter()
+                    .map(|element| self.check_expr(element))
+                    .collect();
+                let ty = if fields.iter().any(|field| field.ty == Type::Never) {
+                    Type::Never
+                } else {
+                    Type::tuple(fields.iter().map(|field| field.ty.clone()).collect())
+                };
+                if let depth @ (65..) = ty.tuple_depth() {
+                    self.type_error(
+                        "E3014",
+                        format!(
+                            "maximum inferred tuple-type nesting depth of {MAX_TUPLE_TYPE_NESTING} exceeded: inferred depth {depth}"
+                        ),
+                        expr.span,
+                    );
+                }
+                HirExpr {
+                    kind: HirExprKind::Tuple(fields),
+                    ty,
+                    span: expr.span,
+                }
+            }
+            ExprKind::Projection {
+                base,
+                index,
+                index_span,
+            } => {
+                let base = self.check_expr(base);
+                let ty = match &base.ty {
+                    Type::Never => Type::Never,
+                    Type::Tuple(fields) => {
+                        if let Some(ty) = fields.get(*index) {
+                            ty.clone()
+                        } else {
+                            self.type_error(
+                                "E3013",
+                                format!(
+                                    "tuple of arity {} has no field at index {index}",
+                                    fields.len()
+                                ),
+                                *index_span,
+                            );
+                            Type::Unit
+                        }
+                    }
+                    other => {
+                        self.type_error(
+                            "E3012",
+                            format!("cannot project a tuple field from {other}"),
+                            *index_span,
+                        );
+                        Type::Unit
+                    }
+                };
+                HirExpr {
+                    kind: HirExprKind::Projection {
+                        base: Box::new(base),
+                        index: *index,
+                    },
+                    ty,
+                    span: expr.span,
+                }
+            }
             ExprKind::Unary { op, operand } => {
                 let operand = self.check_expr(operand);
                 let ty = if operand.ty == Type::Never {

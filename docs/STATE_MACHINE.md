@@ -72,9 +72,9 @@ source break / continue statement
 
 The checker tracks normal fallthrough, return, break, continue, and potential divergence separately from `Never`'s normal-value bottom typing. Only a `while` **body** introduces its loop target: while checking/evaluating a new `while` condition, the surrounding loop target remains active. Condition effects are propagated and must not be consumed by the new loop. Functions reset loop context and are barriers to escaped effects. Invalid typed HIR that escapes `Break` or `Continue` across a function boundary reports E9004 with the keyword span. Runtime transitions charge the existing per-iteration budget tick on `Continue` before reevaluating the condition (E4006 on exhaustion). These are **implemented post-D001 transitions**, verified in `HYDRA_0_2_D001_FREEZE.md`.
 
-### Hydra 0.2 D002 tuple transitions — accepted, not implemented
+### Hydra 0.2 D002 tuple transitions — implemented
 
-The separately accepted normative D002 pipeline must extend existing phase transitions without weakening their invariants. No such tuple transitions exist in executable code as of this acceptance record:
+The separately accepted normative D002 pipeline extends existing phase transitions without weakening their invariants. The following transitions are implemented and locally validated in D002:
 
 ```text
 source tuple/type/projection syntax
@@ -85,6 +85,8 @@ source tuple/type/projection syntax
 -> resolver: recurse into tuple elements and projection bases under existing scopes
 -> checker: structural ordered type identity, inferred elements, typed projection,
             D001 left-to-right path effects, matching-type equality
+            infer structural type -> tuple depth <= 64?
+                valid -> typed HIR; invalid -> E3014 (checker, constructing span)
 -> typed HIR: explicit tuple construction/projection, with spans and types
 -> runtime: evaluate elements left to right into shared immutable storage;
             project checked constant field; bounded, fuel-charged tuple equality
@@ -95,11 +97,13 @@ source tuple/type/projection syntax
 
 **Parser state:** `()` stays Unit, `(expr)` grouping, and `(expr,)` a singleton tuple. A nonempty tuple requires a comma. Tuple types have matching grouping/Unit/singleton rules. At most 64 tuple fields are accepted (E1101); type paths have at most 64 tuple layers (E1105). Existing `MAX_PARSE_DEPTH = 128`, `MAX_EXPR_DEPTH = 256`, synthetic EOF, parser progress, depth restoration and bounded synchronization remain unchanged. The iterative expression-depth walker must traverse **every** tuple element and projection base (E1106), including malformed/recovery paths. Oversized decimal projection indices report E1102 without truncation; assigning to a projection reports E1104.
 
-**Resolver/checker state:** tuple elements are visited in source order, and projections traverse their base without introducing lexical scopes or mutable locations. Per-function symbol/type/effect contexts reset as before. The checker infers and matches ordered tuple types exactly; E3012 diagnoses projection on a normally valued non-tuple, E3013 diagnoses out-of-range access, both with dot-through-index spans. A base with no normal value propagates the original D001 effect, independently of `Never` typing. Unreachable source is still checked, but unreachable expression effects must not become reachable path outcomes.
+**Resolver/checker state:** tuple elements are visited in source order, and projections traverse their base without introducing lexical scopes or mutable locations. Per-function symbol/type/effect contexts reset as before. The checker infers and matches ordered tuple types exactly; E3012 diagnoses projection on a normally valued non-tuple, E3013 diagnoses out-of-range access, both with dot-through-index spans. A base with no normal value propagates the original D001 effect, independently of `Never` typing. Unreachable source is still checked, but unreachable expression effects must not become reachable path outcomes. Under the **2026-10-08 human-approved Option A amendment**, every inferred structural tuple path has at most 64 tuple layers (primitive depth 0; tuple depth 1 + maximum child depth), including locals, argument/return flows, joins, and projections. At 65 layers, the checker issues **E3014** with actual and allowed depths and the constructing expression's primary span; a successful typed HIR cannot contain an over-limit source-derived tuple type. Explicit type annotations above 64 remain parser-owned **E1105**. Runtime **E9004** is only a defensive rejection of malformed internal HIR, not a normal source-derived nesting diagnostic. The checker depth walk memoizes shared tuple subgraphs to avoid exponential traversal.
 
 **HIR/runtime state:** construction and projection have dedicated typed HIR representations. The interpreter never exposes a partially initialized tuple. Each completed element snapshots its value; aggregate storage is shared and immutable across reads/calls/returns. A nested projection or tuple equality propagates Return/Break/Continue and errors according to frozen D001 semantics. Equality uses an iterative tuple-pair worklist and pair memoization that never skips first-visit descendant scalar equality, including shared NaN. Pair/field work consumes the existing 1,000,000-step fuel (E4006); malformed typed HIR or aggregate shape reports E9004 rather than panicking or indexing unchecked. Nonrecursive opaque host display, and rejection of source whole-tuple `print`/`println`, prevent accidental recursive formatting.
 
-Acceptance of D002 defines **future transition obligations only**. Frozen D001 behavior, parser state guards, per-function resets, runtime call-depth restoration and diagnostic unwinding are unchanged. Implementation tests, corpus and fuzz cases require a separate authorization.
+The D002 runtime additionally checks each function argument against its declared HIR parameter type before binding and checks a normal function result against the declared return type after restoring call depth. Tuple shape and nested fields are checked iteratively with existing fuel; malformed HIR returns source-spanned E9004 instead of silently carrying a wrongly typed aggregate across the function boundary.
+
+Acceptance of D002 defines the locked transition obligations. D002 source, integration and runtime regression tests now exercise them; remaining validation and publication gates are recorded in `HYDRA_0_2_D002_IMPLEMENTATION.md`. Frozen D001 behavior, parser state guards, per-function resets, runtime call-depth restoration and diagnostic unwinding retain their required semantics. D002 remains unfrozen.
 
 ## Function-call lifecycle
 
@@ -110,11 +114,13 @@ function lookup
 -> arity invariant check
 -> call-depth guard
 -> fresh frame creation
+-> runtime argument/type invariant validation (D002)
 -> parameter binding
 -> call_depth increment
 -> body evaluation
 -> Flow::Value / Flow::Return / Flow::Break or Flow::Continue (invalid across function boundary: E9004) / diagnostic
 -> call_depth decrement
+-> normal result/type invariant validation (D002)
 -> frame destruction
 -> caller continuation or diagnostic propagation
 ```

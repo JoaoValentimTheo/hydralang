@@ -1,0 +1,8 @@
+fn main() {
+ let n = 0.0 / 0.0
+ let leaf = (n,)
+ let a = ((leaf, leaf), 1)
+ println(a == a)
+ println(a != a)
+ println((1.25, true).0)
+}

@@ -1,0 +1,10 @@
+fn pair(n: Int) -> ((Int, String), Bool) {
+    ((n, "ready"), true)
+}
+fn main() {
+    let pair = pair(42)
+    println(pair.0.0)
+    println(pair.0.1)
+    println(pair.1)
+    println((1,).0)
+}

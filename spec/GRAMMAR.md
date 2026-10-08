@@ -54,9 +54,15 @@ continue-stmt := "continue"
 
 **Compatibility: intentional breaking change.** Hydra 0.1 accepted `break` and `continue` as ordinary identifier spellings (e.g. `let break = 1` or `let continue = 2`). These previously valid identifier uses became invalid under D001. D001 specifies no other intentional invalidation of a valid Hydra 0.1 program. See `docs/decisions/001-loop-control.md` and the completed regression audit in `HYDRA_0_2_D001_FREEZE.md`.
 
-## Hydra 0.2 D002 accepted structural tuples — implementation pending
+## Hydra 0.2 D002 implemented structural tuples
 
-The following is the **locked normative D002 grammar**, accepted on 2026-10-08. It extends the implemented post-D001 language; **tuple parsing, type syntax and projection are not yet implemented**. Existing 0.1/D001 syntax and behavior remain in force until the separately authorized implementation campaign.
+**2026-10-08 approved Option A clarification:** The parser owns E1105 for
+depth >64 in **written** tuple types. The checker owns E3014 for depth >64 in
+**inferred** tuple types, with the constructing expression span and actual/
+maximum depths. A primitive has tuple depth zero and grouping adds no layer.
+The following grammar is implemented in D002; historical acceptance wording remains in the decision record.
+
+The following is the **locked normative D002 grammar**, accepted on 2026-10-08. It extends the implemented post-D001 language; **tuple parsing, type syntax and projection are implemented**. Existing 0.1/D001 syntax and behavior remain in force alongside this extension.
 
 ```text
 type             := IDENT | "(" ")" | "(" type ")" | tuple-type
@@ -77,4 +83,4 @@ Constant projections such as `t.0`, `t.1`, `(pair()).0` and `t.0.1` are left-ass
 
 At most **64 fields** may occur in a tuple expression or type; arity 65 reports E1101 with the tuple syntax span. Tuple **type nesting** is limited to **64 tuple layers along any path**, with excess reported as E1105. Existing `MAX_PARSE_DEPTH = 128` (E1105) and `MAX_EXPR_DEPTH = 256` (E1106) remain unchanged. All tuple children and projection bases participate in the iterative expression-depth check, and tuple-type parsing must obey the syntax/nesting guards and normal progress/recovery rules. Oversized projection integer indices report E1102 without truncation.
 
-This is a **compatible extension** against frozen D001: no new keywords, no changed `()`/grouping semantics, no changed float literals or previously accepted calls. Destructuring, patterns, generic type application, lists, sets, arrays, named fields and other family syntax are not accepted. See `docs/decisions/002-tuples.md`; the implementation is pending separate authorization.
+This is a **compatible extension** against frozen D001: no new keywords, no changed `()`/grouping semantics, no changed float literals or previously accepted calls. Destructuring, patterns, generic type application, lists, sets, arrays, named fields and other family syntax are not accepted. See `docs/decisions/002-tuples.md`; the implementation is documented in `HYDRA_0_2_D002_IMPLEMENTATION.md`.

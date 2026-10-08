@@ -1,5 +1,6 @@
 use hydra_ast::{
-    BinaryOp, Block, Expr, ExprKind, Function, Literal, Param, Program, Stmt, TypeExpr, UnaryOp,
+    BinaryOp, Block, Expr, ExprKind, Function, Literal, Param, Program, Stmt, TypeExpr,
+    TypeExprKind, UnaryOp,
 };
 use hydra_diagnostics::{Diagnostic, Phase};
 use hydra_lexer::{Token, TokenKind};
@@ -8,6 +9,8 @@ use std::mem::discriminant;
 
 const MAX_PARSE_DEPTH: usize = 128;
 const MAX_EXPR_DEPTH: usize = 256;
+const MAX_TUPLE_ARITY: usize = 64;
+const MAX_TUPLE_TYPE_NESTING: usize = 64;
 
 #[derive(Debug)]
 pub struct ParseResult {
@@ -119,8 +122,69 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_type(&mut self) -> Option<TypeExpr> {
-        let (name, span) = self.expect_identifier("expected type name")?;
-        Some(TypeExpr { name, span })
+        self.with_depth(|parser| parser.parse_type_inner())
+    }
+
+    fn parse_type_inner(&mut self) -> Option<TypeExpr> {
+        if !self.at(&TokenKind::LeftParen) {
+            let (name, span) = self.expect_identifier("expected type name")?;
+            return Some(TypeExpr {
+                kind: TypeExprKind::Name(name),
+                span,
+            });
+        }
+        let open = self.advance().span;
+        self.skip_newlines();
+        if self.at(&TokenKind::RightParen) {
+            let close = self.advance().span;
+            return Some(TypeExpr {
+                kind: TypeExprKind::Unit,
+                span: open.join(close).unwrap_or(open),
+            });
+        }
+        let mut first = self.parse_type()?;
+        self.skip_newlines();
+        if !self.consume(&TokenKind::Comma) {
+            let close = self
+                .expect(&TokenKind::RightParen, "expected `)` after type")?
+                .span;
+            first.span = open.join(close).unwrap_or(open);
+            return Some(first);
+        }
+        let mut elements = vec![first];
+        loop {
+            self.skip_newlines();
+            if self.at(&TokenKind::RightParen) {
+                break;
+            }
+            if elements.len() == MAX_TUPLE_ARITY {
+                self.error("E1101", "tuple type arity exceeds 64", self.peek().span);
+                return None;
+            }
+            elements.push(self.parse_type()?);
+            self.skip_newlines();
+            if !self.consume(&TokenKind::Comma) {
+                break;
+            }
+        }
+        let close = self
+            .expect(&TokenKind::RightParen, "expected `)` after tuple type")?
+            .span;
+        let span = open.join(close).unwrap_or(open);
+        let mut stack: Vec<(&TypeExpr, usize)> = elements.iter().map(|t| (t, 1)).collect();
+        while let Some((ty, depth)) = stack.pop() {
+            if depth > MAX_TUPLE_TYPE_NESTING {
+                self.error("E1105", "tuple type nesting exceeds 64", ty.span);
+                return None;
+            }
+            if let TypeExprKind::Tuple(fields) = &ty.kind {
+                stack.extend(fields.iter().map(|child| (child, depth + 1)));
+            }
+        }
+        Some(TypeExpr {
+            kind: TypeExprKind::Tuple(elements),
+            span,
+        })
     }
 
     fn parse_block(&mut self) -> Option<Block> {
@@ -265,6 +329,40 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
+            if self.at(&TokenKind::Dot) {
+                if 21 < min_binding_power {
+                    break;
+                }
+                let dot = self.advance().span;
+                let token = self.advance().clone();
+                let TokenKind::Int(text) = token.kind else {
+                    self.error(
+                        "E1101",
+                        "expected decimal tuple projection index",
+                        dot.join(token.span).unwrap_or(dot),
+                    );
+                    return None;
+                };
+                let index_span = dot.join(token.span).unwrap_or(dot);
+                let Ok(index) = text.parse::<usize>() else {
+                    self.error("E1102", "tuple projection index is too large", index_span);
+                    return None;
+                };
+                let span = left.span.join(token.span).unwrap_or(left.span);
+                left = Expr {
+                    kind: ExprKind::Projection {
+                        base: Box::new(left),
+                        index,
+                        index_span,
+                    },
+                    span,
+                };
+                if !self.expression_depth_within_limit(&left) {
+                    return None;
+                }
+                continue;
+            }
+
             if self.at(&TokenKind::Equal) {
                 let (left_power, right_power) = (1, 1);
                 if left_power < min_binding_power {
@@ -332,6 +430,8 @@ impl<'a> Parser<'a> {
             let child_depth = depth + 1;
             match &expr.kind {
                 ExprKind::Unary { operand, .. } => stack.push((operand, child_depth)),
+                ExprKind::Tuple(fields) => stack.extend(fields.iter().map(|e| (e, child_depth))),
+                ExprKind::Projection { base, .. } => stack.push((base, child_depth)),
                 ExprKind::Binary { left, right, .. } => {
                     stack.push((left, child_depth));
                     stack.push((right, child_depth));
@@ -427,6 +527,31 @@ impl<'a> Parser<'a> {
                 }
                 let mut expr = self.parse_expr(0)?;
                 self.skip_newlines();
+                if self.consume(&TokenKind::Comma) {
+                    let mut elements = vec![expr];
+                    loop {
+                        self.skip_newlines();
+                        if self.at(&TokenKind::RightParen) {
+                            break;
+                        }
+                        if elements.len() == MAX_TUPLE_ARITY {
+                            self.error("E1101", "tuple arity exceeds 64", self.peek().span);
+                            return None;
+                        }
+                        elements.push(self.parse_expr(0)?);
+                        self.skip_newlines();
+                        if !self.consume(&TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    let close = self
+                        .expect(&TokenKind::RightParen, "expected `)` after tuple")?
+                        .span;
+                    return Some(Expr {
+                        kind: ExprKind::Tuple(elements),
+                        span: token.span.join(close).unwrap_or(token.span),
+                    });
+                }
                 let close = self.expect(&TokenKind::RightParen, "expected `)`")?.span;
                 expr.span = token.span.join(close).unwrap_or(expr.span);
                 Some(expr)

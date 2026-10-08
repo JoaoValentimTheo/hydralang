@@ -322,3 +322,79 @@ fn d001_generated_nested_loop_control_is_deterministic_and_locally_consumed() {
         );
     }
 }
+
+#[test]
+fn d002_generated_arity_annotation_projection_and_bounds() {
+    for arity in 1..=64 {
+        let types = vec!["Int"; arity].join(", ");
+        let values = (0..arity)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let comma = if arity == 1 { "," } else { "" };
+        let source = format!(
+            "fn main() {{\n let t: ({types}{comma}) = ({values}{comma})\n println(t.{})\n println(t.0)\n}}\n",
+            arity - 1
+        );
+        let compiled = compile("generated-tuples.hyd", &source);
+        assert!(
+            compiled.diagnostics.is_empty(),
+            "arity {arity}: {:?}",
+            compiled.diagnostics
+        );
+        let result = hydra_runtime::execute(&compiled.hir.expect("well-typed tuple"));
+        assert!(
+            result.diagnostics.is_empty(),
+            "arity {arity}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(result.output, format!("{}\n0\n", arity - 1));
+
+        let invalid =
+            format!("fn main() {{\n let t = ({values}{comma})\n println(t.{arity})\n}}\n");
+        let first = compile("generated-tuples-invalid.hyd", &invalid);
+        let second = compile("generated-tuples-invalid.hyd", &invalid);
+        assert_eq!(first.diagnostics, second.diagnostics);
+        assert!(first.hir.is_none());
+        let failure = first
+            .diagnostics
+            .iter()
+            .find(|d| d.code == "E3013")
+            .expect("out-of-range tuple projection");
+        assert_eq!(
+            &invalid[failure.primary.start..failure.primary.end],
+            format!(".{arity}")
+        );
+        for diagnostic in &first.diagnostics {
+            assert_source_span(diagnostic.primary, SourceId::new(0), &invalid);
+        }
+    }
+}
+
+#[test]
+fn d002_generated_nested_nan_equality_and_snapshot_properties() {
+    for depth in 1..=24 {
+        let mut expr = String::from("(0.0 / 0.0,)");
+        for _ in 1..depth {
+            expr = format!("({expr},)");
+        }
+        let source = format!(
+            "fn main() {{\n let t = {expr}\n let u = t\n println(t == u)\n println(t != u)\n println(u == t)\n println(u != t)\n}}\n"
+        );
+        let first = compile("generated-nan.hyd", &source);
+        let second = compile("generated-nan.hyd", &source);
+        assert_eq!(first.diagnostics, second.diagnostics);
+        assert!(
+            first.diagnostics.is_empty(),
+            "depth {depth}: {:?}",
+            first.diagnostics
+        );
+        let result = hydra_runtime::execute(&first.hir.expect("well-typed nested tuple"));
+        assert!(
+            result.diagnostics.is_empty(),
+            "depth {depth}: {:?}",
+            result.diagnostics
+        );
+        assert_eq!(result.output, "false\ntrue\nfalse\ntrue\n");
+    }
+}

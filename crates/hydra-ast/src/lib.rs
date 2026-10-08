@@ -25,8 +25,15 @@ pub struct Param {
 
 #[derive(Clone, Debug)]
 pub struct TypeExpr {
-    pub name: String,
+    pub kind: TypeExprKind,
     pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub enum TypeExprKind {
+    Name(String),
+    Unit,
+    Tuple(Vec<TypeExpr>),
 }
 
 #[derive(Clone, Debug)]
@@ -77,6 +84,12 @@ pub struct Expr {
 pub enum ExprKind {
     Literal(Literal),
     Name(String),
+    Tuple(Vec<Expr>),
+    Projection {
+        base: Box<Expr>,
+        index: usize,
+        index_span: Span,
+    },
     Unary {
         op: UnaryOp,
         operand: Box<Expr>,

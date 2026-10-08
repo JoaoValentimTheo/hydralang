@@ -1,0 +1,7 @@
+fn main() {
+    let mut x = 4
+    let pair: (Int, Int) = (x, 8)
+    x = 99
+    println(pair.0)
+    println(pair.1)
+}

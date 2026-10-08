@@ -1,0 +1,6 @@
+fn main() {
+ let t = ((1.5, 0.0), 2)
+ println(t.0.1)
+ println(t . 00)
+ let π = 2.75
+}

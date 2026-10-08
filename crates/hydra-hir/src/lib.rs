@@ -71,6 +71,11 @@ pub struct HirExpr {
 pub enum HirExprKind {
     Literal(HirLiteral),
     Local(SymbolId),
+    Tuple(Vec<HirExpr>),
+    Projection {
+        base: Box<HirExpr>,
+        index: usize,
+    },
     Unary {
         op: HirUnaryOp,
         operand: Box<HirExpr>,

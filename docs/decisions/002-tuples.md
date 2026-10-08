@@ -1,5 +1,23 @@
 # D002: Structural tuples with constant positional projection
 
+> **2026-10-08 — Human-approved normative amendment (Option A).** Original
+> acceptance text below is preserved as history. The 64-layer structural
+> tuple-type limit applies to explicit and inferred types on every type-tree
+> path: primitive depth = 0, tuple depth = 1 + maximum child depth; grouping
+> does not increase depth. Depth 64 is accepted, 65 rejected. The parser
+> retains **E1105** for excessive written type nesting. The checker owns new
+> **E3014** for excessive inferred tuple nesting, at the first constructing
+> expression's span, with actual and allowed depths in the message. This
+> invariant holds across locals, calls, returns, branch joins and projections;
+> successful checked HIR must not exceed it. Whole-expression `Never` and
+> frozen D001 effects are unchanged; malformed internal HIR still produces
+> runtime **E9004**. Option B (written-only limits) was rejected. The earlier
+> contract left inferred `(t, t)` chains unrestricted while the runtime
+> rejected level 65; this amendment removes that inconsistency. Implementation
+> was separately authorized and completed local validation, without a D002
+> freeze or Hydra 0.2 release. Statements below saying implementation had not
+> started describe the original acceptance, not the implemented D002 code.
+
 - Status: **Accepted** — normative contract locked; implementation not started
 - Date: 2026-10-08
 - Compatibility: **compatible extension** relative to the frozen D001 baseline

@@ -176,6 +176,16 @@ fn passing_programs_execute_with_expected_output() {
             "7\n",
         ),
         (
+            "tests/programs/pass/tuples/d002_structural_roundtrip.hyd",
+            "42\nready\ntrue\n1\n",
+        ),
+        (
+            "tests/programs/pass/tuples/d002_equality_nan.hyd",
+            "true\nfalse\nfalse\ntrue\n",
+        ),
+        ("tests/programs/pass/tuples/d002_strict_continue.hyd", "2\n"),
+        ("tests/programs/pass/tuples/d002_snapshot.hyd", "4\n8\n"),
+        (
             "tests/programs/pass/control_flow/d001_assignment.hyd",
             "10\n",
         ),
@@ -364,6 +374,36 @@ fn negative_compile_programs_report_the_expected_code() {
             "tests/programs/fail/type/d001_function_barrier.hyd",
             "E3011",
             Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d002_projection_non_tuple.hyd",
+            "E3012",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d002_projection_oob.hyd",
+            "E3013",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d002_type_order.hyd",
+            "E3002",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d002_print_tuple.hyd",
+            "E3007",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/parser/d002_dynamic_index.hyd",
+            "E1101",
+            Phase::Parser,
+        ),
+        (
+            "tests/programs/fail/parser/d002_projection_assignment.hyd",
+            "E1104",
+            Phase::Parser,
         ),
         (
             "tests/programs/fail/parser/d001_break_operand.hyd",

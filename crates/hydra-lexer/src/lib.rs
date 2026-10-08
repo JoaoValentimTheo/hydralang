@@ -258,11 +258,15 @@ impl<'a> Lexer<'a> {
     }
 
     fn number(&mut self, start: usize) {
+        // Immediately after a projection dot, decimal digits are an index,
+        // even when followed by another dot and more digits.
+        let projection_index = matches!(self.tokens.last().map(|t| &t.kind), Some(TokenKind::Dot));
         while self.peek_char().is_some_and(|ch| ch.is_ascii_digit()) {
             self.bump();
         }
         let mut is_float = false;
-        if self.peek_char() == Some('.')
+        if !projection_index
+            && self.peek_char() == Some('.')
             && self
                 .text
                 .get(self.offset + 1..)
@@ -402,5 +406,29 @@ mod tests {
         assert!(matches!(tokens[1].kind, TokenKind::Continue));
         assert!(matches!(&tokens[2].kind, TokenKind::Identifier(name) if name == "breakfast"));
         assert!(matches!(&tokens[3].kind, TokenKind::Identifier(name) if name == "continued"));
+    }
+
+    #[test]
+    fn tuple_projection_digits_do_not_consume_following_dot_or_change_floats() {
+        let result = lex(SourceId::new(0), "t.0.1 + 1.25\nt . 0\nt.0 + 2.75\n");
+        assert!(result.diagnostics.is_empty(), "{:?}", result.diagnostics);
+        let kinds: Vec<_> = result.tokens.iter().map(|token| &token.kind).collect();
+        assert!(matches!(kinds[0], TokenKind::Identifier(n) if n == "t"));
+        assert!(matches!(kinds[1], TokenKind::Dot));
+        assert!(matches!(kinds[2], TokenKind::Int(n) if n == "0"));
+        assert!(matches!(kinds[3], TokenKind::Dot));
+        assert!(matches!(kinds[4], TokenKind::Int(n) if n == "1"));
+        assert!(matches!(kinds[6], TokenKind::Float(n) if n == "1.25"));
+        assert!(matches!(kinds[10], TokenKind::Int(n) if n == "0"));
+        assert!(matches!(kinds[16], TokenKind::Float(n) if n == "2.75"));
+    }
+
+    #[test]
+    fn dot_mode_is_reset_by_newline_and_independent_numbers() {
+        let result = lex(SourceId::new(0), "t.\n1.25\nt.name\n3.50\n");
+        let kinds: Vec<_> = result.tokens.iter().map(|token| &token.kind).collect();
+        assert!(matches!(kinds[2], TokenKind::Newline));
+        assert!(matches!(kinds[3], TokenKind::Float(n) if n == "1.25"));
+        assert!(matches!(kinds[9], TokenKind::Float(n) if n == "3.50"));
     }
 }
