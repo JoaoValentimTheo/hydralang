@@ -53,6 +53,10 @@ fn d001_runtime_matrix() {
             "1\n",
         ),
         (
+            "fn main() {\n while true {\n while true {\n while {\n break\n } {\n println(99)\n }\n println(99)\n }\n println(1)\n break\n }\n println(2)\n}\n",
+            "1\n2\n",
+        ),
+        (
             "fn main() {\n let mut x = 0\n while x < 2 {\n x = x + 1\n print({\n continue\n })\n println(99)\n }\n println(x)\n}\n",
             "2\n",
         ),
@@ -67,6 +71,18 @@ fn d001_runtime_matrix() {
         (
             "fn main() {\n let mut x = 0\n while x < 2 {\n x = x + 1\n println(false && {\n break\n })\n println(true || {\n continue\n })\n }\n println(x)\n}\n",
             "false\ntrue\nfalse\ntrue\n2\n",
+        ),
+        (
+            "fn main() {\n let mut i = 0\n while i < 3 {\n i = i + 1\n let flag = i == 2\n if flag && {\n break\n } {\n println(99)\n }\n println(i)\n }\n println(8)\n}\n",
+            "1\n8\n",
+        ),
+        (
+            "fn main() {\n let mut i = 0\n while i < 3 {\n i = i + 1\n let flag = i == 2\n if flag || {\n continue\n } {\n println(i)\n }\n }\n println(9)\n}\n",
+            "2\n9\n",
+        ),
+        (
+            "fn main() {\n let mut i = 0\n while i < 2 {\n i = i + 1\n false || {\n continue\n }\n println(99)\n }\n println(i)\n}\n",
+            "2\n",
         ),
         (
             "fn main() {\n while true {\n let x = if false {\n break\n } else {\n 5\n }\n println(x)\n break\n }\n}\n",
@@ -151,6 +167,16 @@ fn d001_invalid_control_and_keyword_matrix() {
     let cases = [
         ("fn main() {\n break\n}\n", "E3010", "break"),
         ("fn main() {\n continue\n}\n", "E3011", "continue"),
+        (
+            "fn main() {\n println(\"ação\")\n break\n}\n",
+            "E3010",
+            "break",
+        ),
+        (
+            "fn main() {\n println(\"ação\")\n continue\n}\n",
+            "E3011",
+            "continue",
+        ),
         ("fn main() {\n return\n break\n}\n", "E3010", "break"),
         ("fn main() {\n return\n continue\n}\n", "E3011", "continue"),
         (

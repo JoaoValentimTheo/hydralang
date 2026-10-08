@@ -626,4 +626,113 @@ mod tests {
             assert_eq!(result.diagnostics[0].primary, keyword_span);
         }
     }
+
+    #[test]
+    fn nested_malformed_hir_escape_from_callee_restores_call_depth() {
+        use hydra_hir::HirStmt;
+
+        let span = Span::new(SourceId::new(7), 0, 80);
+        for (statement, keyword_span) in [
+            (
+                HirStmt::Break {
+                    span: Span::new(SourceId::new(7), 21, 26),
+                },
+                Span::new(SourceId::new(7), 21, 26),
+            ),
+            (
+                HirStmt::Continue {
+                    span: Span::new(SourceId::new(7), 35, 43),
+                },
+                Span::new(SourceId::new(7), 35, 43),
+            ),
+        ] {
+            let nested = HirExpr {
+                kind: HirExprKind::Block(HirBlock {
+                    statements: vec![statement],
+                    tail: None,
+                    ty: Type::Never,
+                    span,
+                }),
+                ty: Type::Never,
+                span,
+            };
+            let guarded = HirExpr {
+                kind: HirExprKind::If {
+                    condition: Box::new(HirExpr {
+                        kind: HirExprKind::Literal(HirLiteral::Bool(true)),
+                        ty: Type::Bool,
+                        span,
+                    }),
+                    then_branch: HirBlock {
+                        statements: Vec::new(),
+                        tail: Some(Box::new(nested)),
+                        ty: Type::Never,
+                        span,
+                    },
+                    else_branch: None,
+                },
+                ty: Type::Unit,
+                span,
+            };
+            let body = |tail: HirExpr| HirBlock {
+                statements: Vec::new(),
+                tail: Some(Box::new(tail)),
+                ty: Type::Unit,
+                span,
+            };
+            let program = HirProgram {
+                functions: vec![
+                    HirFunction {
+                        id: FunctionId(0),
+                        name: "main".to_owned(),
+                        params: Vec::new(),
+                        return_type: Type::Unit,
+                        body: body(HirExpr {
+                            kind: HirExprKind::Call {
+                                callee: HirCallee::Function(FunctionId(1)),
+                                args: Vec::new(),
+                            },
+                            ty: Type::Unit,
+                            span,
+                        }),
+                        span,
+                    },
+                    HirFunction {
+                        id: FunctionId(1),
+                        name: "bad".to_owned(),
+                        params: Vec::new(),
+                        return_type: Type::Unit,
+                        body: body(guarded),
+                        span,
+                    },
+                    HirFunction {
+                        id: FunctionId(2),
+                        name: "good".to_owned(),
+                        params: Vec::new(),
+                        return_type: Type::Int,
+                        body: body(literal_int(7, span)),
+                        span,
+                    },
+                ],
+            };
+
+            let result = execute(&program);
+            assert_eq!(result.diagnostics.len(), 1);
+            assert_eq!(result.diagnostics[0].code, "E9004");
+            assert_eq!(result.diagnostics[0].primary, keyword_span);
+
+            let mut interpreter = Interpreter::new(&program);
+            let error = interpreter
+                .call_function(FunctionId(0), Vec::new(), span)
+                .expect_err("nested loop control must not escape its callee");
+            assert_eq!(error.code, "E9004");
+            assert_eq!(error.primary, keyword_span);
+            assert_eq!(interpreter.call_depth, 0);
+            assert_eq!(
+                interpreter.call_function(FunctionId(2), Vec::new(), span),
+                Ok(Value::Int(7))
+            );
+            assert_eq!(interpreter.call_depth, 0);
+        }
+    }
 }
