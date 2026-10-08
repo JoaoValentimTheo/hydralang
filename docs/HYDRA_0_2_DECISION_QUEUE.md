@@ -1,47 +1,43 @@
 # Hydra 0.2 Decision Queue
 
-Status: design queue only. Hydra 0.2 implementation has not started.
+Hydra 0.1 is preserved; Hydra 0.2 is **IN PROGRESS**. This is governance, not implementation authorization. Feature families require an accepted decision, normative specification, source behavior/regression obligations, and independent validation before implementation can be declared complete.
 
-No item in this file authorizes implementation. A future campaign must select one coherent feature family, resolve its dependencies through accepted language decision records, update the specification, and implement/validate that family before beginning another large family.
+## Frozen first family: D001 loop control
 
-## Control-flow extension
+`break` / `continue` is **ACCEPTED, IMPLEMENTED, AUDITED, FROZEN** at `764b901ec8a0f0febfb3624c392d27f14b631ff4`. See `docs/decisions/001-loop-control.md` and `HYDRA_0_2_D001_FREEZE.md`. Its lexical targeting, D001 checker path outcomes, HIR and runtime effects, and E3010/E3011 checks are no longer open candidate questions. D001 is preserved without reopening its contract.
 
-Candidate questions include `break` and `continue` syntax, legal placement, nested-loop targeting, expression/block typing, `Never` interaction, unreachable-code behavior, and runtime/HIR control-effect representation. Dependency: explicit checker model for loop-local control effects.
+## Selected second family: D002 Tuple — PROPOSED
 
-## Type-constructor foundation
+Exactly **one** second-family design has been selected: immutable ordered **structural Tuple** with parenthesized comma literal/type forms and read-only positional projection. The full design is `docs/decisions/002-tuples.md` (**PROPOSED; HUMAN APPROVAL REQUIRED**) and the post-D001 selection analysis is `HYDRA_0_2_D002_DESIGN_GATE.md`. **D002 IMPLEMENTATION NOT STARTED.** This design does not itself authorize specification edits or changes to the compiler, runtime, corpus or fuzz targets. Revisit only upon explicit human decision.
 
-Before parameterized collections or algebraic data types, decide whether Hydra introduces type constructors/generic type arguments in source syntax, how arity is diagnosed, how types are interned/compared, and which parts are user-definable versus builtin-only. Do not smuggle this decision into the first collection parser change.
+## Unselected and deferred families
 
-## Collections: separate candidates
+### Type-constructor foundation
 
-Collections are not one feature and H15 remains deferred. Each candidate needs its own decision covering syntax, type representation, equality, mutability, iteration, indexing, runtime representation, HIR representation, diagnostics, and generic/type-constructor prerequisites.
+Type-argument grammar, constructor arity/identity, lookup and builtin/user-defined boundaries need a concrete accepted consumer. This candidate was assessed independently and deferred: choosing `List<T>` later may motivate its own type-application decision without requiring all user generics in advance.
 
-### `List<T>`
+### `List<T>` — H15 deferred
 
-Open questions: homogeneous element typing, literal syntax, mutability model, length/growth operations, indexing bounds behavior, equality, iteration order, ownership/copy behavior, and builtin/API surface.
+Open: homogeneous elements, type application, literal and indexing syntax, mutability/ownership, size/growth, bounds diagnostics, equality and builtin/API surface. No List contract is accepted.
 
-### Tuple
+### `Set<T>` — H15 deferred
 
-Open questions: heterogeneous fixed arity, unit/singleton syntax ambiguity, positional access, structural versus nominal typing, equality by element, and whether tuples participate in destructuring only after pattern semantics exist.
+Open: type application, syntax distinct from blocks, duplicate policy and equality, deterministic membership/iteration, mutability and storage. A hashing protocol is optional if a deliberately linear policy is accepted later.
 
-### `Set<T>`
+### Fixed `Array<T, N>` — H15 deferred (optional)
 
-Open questions: literal syntax distinct from blocks, hashability/equality requirements, deterministic iteration policy, duplicate handling, mutability, and runtime representation. Set syntax must not be chosen merely by reusing list/tuple delimiters.
+First decide whether fixed arrays exist. If selected later, define length-bearing type identity, compile-time integer length, construction, mutability, indexing and bounds. General const generics are not intrinsically required.
 
-### Fixed `Array<T, N>` (optional)
+### Modules/imports
 
-First decide whether fixed arrays are wanted at all. If yes: length in the type, constant-expression rules for `N`, literal/repeat syntax, indexing, equality, mutability, layout guarantees, and relationship to `List<T>`.
+Open: compilation unit, source/file mapping, namespace and visibility, import cycles, symbol identities across units and module initialization policy. Packages and incremental compilation are separate future work.
 
-## Modules/imports
+### Algebraic data types
 
-Decide compilation unit, file/module mapping, namespace model, visibility, import syntax, cycles, module initialization (if any), and stable cross-module symbol identity before changing resolver/HIR.
+Open: nominal `struct`/`enum` identities, declaration and constructor rules, fields/variants, access, equality and runtime representation. Pattern matching, exhaustiveness, generics and modules may be convenient but are not automatically hard dependencies.
 
-## Algebraic data types
+### Generics
 
-Decide nominal type identity, struct/enum declaration syntax, construction, field/variant access, equality, exhaustiveness/pattern prerequisites, layout opacity, and module namespace interaction.
+Open: parameter binders, substitution, inference/instantiation, identity and runtime/backend strategy. Generic functions can be considered independently from generic ADTs; a future builtin `List<T>` does not imply user generics are accepted.
 
-## Generics
-
-Depends on type-constructor and nominal-type decisions. Decide source syntax, inference boundaries, monomorphization versus runtime representation, constraints, diagnostics, and whether generic functions/types are introduced separately.
-
-Native code generation, WebAssembly, package management, LSP, REPL, and web tooling remain outside this decision queue until the language-semantic prerequisites relevant to them are explicit.
+Native code generation, WebAssembly, package management, LSP, REPL and web tooling remain outside this semantic decision queue until their prerequisites are documented. The next action is **human review of D002**; no D003 is selected.
