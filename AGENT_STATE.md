@@ -2,7 +2,7 @@
 
 - Hydra 0.1 baseline freeze: COMPLETE; Hydra 0.1 post-foundation audit: COMPLETE; Hydra 0.1 foundation: COMPLETE
 - Current repository checkpoint: the commit containing this reconciled state file
-- Hydra 0.2 design gate: COMPLETE; selected family: `break` / `continue`; D001: ACCEPTED; normative contract: LOCKED; Hydra 0.2 implementation: NOT STARTED; H15 Collections: DEFERRED
+- Hydra 0.2 design gate: COMPLETE; selected family: `break` / `continue`; D001: ACCEPTED and IMPLEMENTED; normative contract: LOCKED; Hydra 0.2: IN PROGRESS; H15 Collections: DEFERRED
 - Authoritative pre-freeze checkpoint: `2a4ea08e3b3856437ba2ccac2ebb776e374ecf92`; frozen semantic implementation commit: `22d8cf99f3f355e00c5bc5ae299d0b268e853394`
 - Completed foundation milestones: PF0-PF19
 - Branch: `main`
@@ -10,11 +10,11 @@
 - Declared and locally verified MSRV: 1.85.0
 - Pipeline: source -> lexer -> parser/AST -> resolution -> type checking -> typed HIR -> interpreter -> CLI
 - Implemented types: Int, Float, Bool, String, Unit, Never
-- Implemented language core: literals, immutable/mutable bindings, arithmetic, comparisons, boolean operators, functions/calls, if/else, while, return, blocks, local inference, explicit parameter/return types
+- Implemented language core: literals, immutable/mutable bindings, arithmetic, comparisons, boolean operators, functions/calls, if/else, while, return, value-less break/continue inside while bodies, blocks, local inference, explicit parameter/return types
 - Builtins: `print`, `println`, with stable `BuiltinId` identity and signatures owned by the central `hydra-stdlib` registry; HIR/runtime use the ID rather than source-name dispatch
 - Runtime policy: checked i64 integer arithmetic, explicit division-by-zero/overflow diagnostics, 128 call-depth limit, 1,000,000-step execution budget
 - Diagnostics: stable E1xxx/E2xxx/E3xxx/E4xxx/E9xxx inventory documented in `docs/ERROR_CODES.md`, with source spans on compiler/runtime diagnostics
-- Test architecture: unit tests plus 22 pass / 41 fail classified corpus programs and deterministic property suites over generated UTF-8/token streams
+- Test architecture: unit tests plus 30 pass / 49 fail classified corpus programs and deterministic property suites over generated UTF-8/token streams and loop-control nesting
 - Examples: 14 runnable/checkable Hydra program files plus `examples/README.md`
 - Fuzzing: lexer, parser, compile-pipeline, and runtime targets; CI uses pinned `cargo-fuzz 0.13.2` with `nightly-2026-10-02`
 - Platform gate: GitHub Actions provides authoritative Linux quality/tests/MSRV and pinned-nightly/pinned-cargo-fuzz smoke gates, plus Windows stable workspace tests; native maintainer macOS validation is required via `./scripts/ci-macos.sh` (outside GitHub Actions)
@@ -23,7 +23,9 @@
 - Known limitations: no collections, modules/imports, algebraic data types, generics, closures/first-class functions, native/WASM backends, package tooling, LSP, REPL, or optimizer
 - Open risks: recursive walkers rely on parser structural guards for source-derived AST/HIR; hand-fabricated adversarial HIR is outside the source-language trust boundary; fixed interpreter resource limits may need future tuning
 - Governance: externally observable semantic changes require specification/decision/regression/compatibility/validation discipline from `docs/VERSIONING.md` and `docs/decisions/`
-- Prior action permitted at the 0.1 freeze: Hydra 0.2 design/decision work for one coherent feature family only. This state file does not authorize implementation; H15 Collections remains deferred
+- Earlier 0.1 freeze authorization was limited to design work; the separate D001-only implementation campaign was authorized on 2026-10-08. H15 Collections remains deferred.
 - Hydra 0.2 first-family design gate: COMPLETE (`HYDRA_0_2_DESIGN_GATE.md`); selected family: control-flow extension (`break` / `continue`)
 - Hydra 0.2 first-family decision: `docs/decisions/001-loop-control.md`, **ACCEPTED** after independent architectural review; normative contract **LOCKED** in `spec/` and `docs/ERROR_CODES.md`; acceptance ledger: `HYDRA_0_2_D001_ACCEPTANCE.md`
-- Next permitted action: a **separately authorized implementation campaign for D001 only**. This acceptance campaign does **not** authorize implementation. No feature family beyond `break` / `continue` is approved; H15 Collections remains DEFERRED.
+- D001 implementation: COMPLETE locally, covering dedicated lexer/AST/parser/resolver/checker/HIR/interpreter handling, E3010/E3011 keyword diagnostics, malformed-HIR E9004 boundary protection, path-sensitive outcomes and bounded fuel-on-continue; evidence ledger: `HYDRA_0_2_D001_IMPLEMENTATION.md`.
+- Compatibility: reserving `break` and `continue` intentionally invalidates their former Hydra 0.1 identifier use; all other existing Hydra 0.1 regression programs must remain valid.
+- Governance: Hydra 0.2 is IN PROGRESS. No second feature family or D002 has been authorized; H15 Collections is DEFERRED; no 0.2 release/tag is approved.

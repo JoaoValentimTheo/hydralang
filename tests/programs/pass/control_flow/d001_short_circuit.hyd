@@ -1,0 +1,11 @@
+fn main() {
+    while true {
+        println(false && {
+            break
+        })
+        println(true || {
+            continue
+        })
+        break
+    }
+}

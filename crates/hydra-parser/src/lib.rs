@@ -142,6 +142,13 @@ impl<'a> Parser<'a> {
                 if let Some(stmt) = self.parse_while() {
                     statements.push(stmt);
                 }
+            } else if self.at(&TokenKind::Break) || self.at(&TokenKind::Continue) {
+                let keyword = self.advance().clone();
+                self.require_line_boundary();
+                statements.push(match keyword.kind {
+                    TokenKind::Break => Stmt::Break { span: keyword.span },
+                    _ => Stmt::Continue { span: keyword.span },
+                });
             } else if self.at(&TokenKind::Return) {
                 if let Some(stmt) = self.parse_return() {
                     statements.push(stmt);
@@ -664,6 +671,35 @@ mod tests {
         assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
         assert_eq!(parsed.program.functions.len(), 1);
         assert!(parsed.program.functions[0].body.tail.is_some());
+    }
+
+    #[test]
+    fn loop_control_statements_preserve_keyword_spans_and_recover_after_bad_operand() {
+        use hydra_ast::Stmt;
+        let source = SourceId::new(0);
+        let text = "fn main() {\n while true {\n break\n continue\n }\n}\n";
+        let lexed = lex(source, text);
+        let parsed = parse(&lexed.tokens);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let statements = &parsed.program.functions[0].body.statements;
+        let Stmt::While { body, .. } = &statements[0] else {
+            panic!("missing while");
+        };
+        assert!(
+            matches!(&body.statements[0], Stmt::Break { span } if &text[span.start..span.end] == "break")
+        );
+        assert!(
+            matches!(&body.statements[1], Stmt::Continue { span } if &text[span.start..span.end] == "continue")
+        );
+
+        let text = "fn main() {\n break(7)\n continue 3\n}\nfn valid() {}\n";
+        let parsed = parse(&lex(source, text).tokens);
+        assert!(parsed.diagnostics.iter().any(|d| d.code == "E1101"));
+        assert_eq!(
+            parsed.program.functions.len(),
+            2,
+            "parser should retain later functions"
+        );
     }
 
     #[test]

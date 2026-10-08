@@ -168,6 +168,7 @@ impl Resolver {
                 self.resolve_expr(condition);
                 self.resolve_block(body, true);
             }
+            Stmt::Break { .. } | Stmt::Continue { .. } => {}
             Stmt::Return { value, .. } => {
                 if let Some(value) = value {
                     self.resolve_expr(value);

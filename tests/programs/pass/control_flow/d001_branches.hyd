@@ -1,0 +1,14 @@
+fn main() {
+    let mut i = 0
+    while i < 5 {
+        i = i + 1
+        if i == 1 {
+            continue
+        }
+        if i == 3 {
+            break
+        }
+        println(i)
+    }
+    println(7)
+}

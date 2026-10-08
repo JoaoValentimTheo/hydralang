@@ -1,0 +1,9 @@
+fn helper() {
+    continue
+}
+fn main() {
+    while true {
+        helper()
+        break
+    }
+}

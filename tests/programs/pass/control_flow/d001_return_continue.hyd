@@ -1,0 +1,14 @@
+fn f() -> Int {
+    let mut i = 0
+    while i < 2 {
+        i = i + 1
+        return {
+            continue
+        }
+    }
+    7
+}
+
+fn main() {
+    println(f())
+}

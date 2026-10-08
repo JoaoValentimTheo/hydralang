@@ -50,6 +50,8 @@ pub fn execute(program: &HirProgram) -> RunResult {
 enum Flow {
     Value(Value),
     Return(Value),
+    Break(Span),
+    Continue(Span),
 }
 
 struct Interpreter<'a> {
@@ -149,6 +151,11 @@ impl<'a> Interpreter<'a> {
         self.call_depth = self.call_depth.saturating_sub(1);
         match result? {
             Flow::Value(value) | Flow::Return(value) => Ok(value),
+            Flow::Break(span) | Flow::Continue(span) => Err(self.runtime_error(
+                "E9004",
+                "loop control escaped a function boundary in typed HIR",
+                span,
+            )),
         }
     }
 
@@ -158,8 +165,9 @@ impl<'a> Interpreter<'a> {
         frame: &mut BTreeMap<SymbolId, Value>,
     ) -> RuntimeResult<Flow> {
         for stmt in &block.statements {
-            if let Flow::Return(value) = self.eval_stmt(stmt, frame)? {
-                return Ok(Flow::Return(value));
+            match self.eval_stmt(stmt, frame)? {
+                Flow::Value(_) => {}
+                flow => return Ok(flow),
             }
         }
         if let Some(tail) = &block.tail {
@@ -177,7 +185,9 @@ impl<'a> Interpreter<'a> {
         let span = match stmt {
             HirStmt::Let { span, .. }
             | HirStmt::While { span, .. }
-            | HirStmt::Return { span, .. } => *span,
+            | HirStmt::Return { span, .. }
+            | HirStmt::Break { span }
+            | HirStmt::Continue { span } => *span,
             HirStmt::Expr(expr) => expr.span,
         };
         self.tick(span)?;
@@ -187,19 +197,21 @@ impl<'a> Interpreter<'a> {
                     frame.insert(*symbol, value);
                     Ok(Flow::Value(Value::Unit))
                 }
-                Flow::Return(value) => Ok(Flow::Return(value)),
+                flow => Ok(flow),
             },
             HirStmt::Expr(expr) => match self.eval_expr(expr, frame)? {
                 Flow::Value(_) => Ok(Flow::Value(Value::Unit)),
-                Flow::Return(value) => Ok(Flow::Return(value)),
+                flow => Ok(flow),
             },
+            HirStmt::Break { span } => Ok(Flow::Break(*span)),
+            HirStmt::Continue { span } => Ok(Flow::Continue(*span)),
             HirStmt::While {
                 condition, body, ..
             } => {
                 loop {
                     let condition_value = match self.eval_expr(condition, frame)? {
                         Flow::Value(value) => value,
-                        Flow::Return(value) => return Ok(Flow::Return(value)),
+                        flow => return Ok(flow),
                     };
                     let Value::Bool(condition_value) = condition_value else {
                         return Err(self.runtime_error(
@@ -211,17 +223,19 @@ impl<'a> Interpreter<'a> {
                     if !condition_value {
                         break;
                     }
-                    if let Flow::Return(value) = self.eval_block(body, frame)? {
-                        return Ok(Flow::Return(value));
+                    match self.eval_block(body, frame)? {
+                        Flow::Value(_) | Flow::Continue(_) => self.tick(body.span)?,
+                        Flow::Break(_) => break,
+                        flow @ Flow::Return(_) => return Ok(flow),
                     }
-                    self.tick(body.span)?;
                 }
                 Ok(Flow::Value(Value::Unit))
             }
             HirStmt::Return { value, .. } => {
                 let value = if let Some(value) = value {
                     match self.eval_expr(value, frame)? {
-                        Flow::Value(value) | Flow::Return(value) => value,
+                        Flow::Value(value) => value,
+                        flow => return Ok(flow),
                     }
                 } else {
                     Value::Unit
@@ -253,14 +267,14 @@ impl<'a> Interpreter<'a> {
             HirExprKind::Unary { op, operand } => {
                 let value = match self.eval_expr(operand, frame)? {
                     Flow::Value(value) => value,
-                    Flow::Return(value) => return Ok(Flow::Return(value)),
+                    flow => return Ok(flow),
                 };
                 self.eval_unary(*op, value, expr.span).map(Flow::Value)
             }
             HirExprKind::Binary { left, op, right } => {
                 let left = match self.eval_expr(left, frame)? {
                     Flow::Value(value) => value,
-                    Flow::Return(value) => return Ok(Flow::Return(value)),
+                    flow => return Ok(flow),
                 };
                 if *op == HirBinaryOp::And && left == Value::Bool(false) {
                     return Ok(Flow::Value(Value::Bool(false)));
@@ -270,7 +284,7 @@ impl<'a> Interpreter<'a> {
                 }
                 let right = match self.eval_expr(right, frame)? {
                     Flow::Value(value) => value,
-                    Flow::Return(value) => return Ok(Flow::Return(value)),
+                    flow => return Ok(flow),
                 };
                 self.eval_binary(*op, left, right, expr.span)
                     .map(Flow::Value)
@@ -278,7 +292,7 @@ impl<'a> Interpreter<'a> {
             HirExprKind::Assign { symbol, value } => {
                 let value = match self.eval_expr(value, frame)? {
                     Flow::Value(value) => value,
-                    Flow::Return(value) => return Ok(Flow::Return(value)),
+                    flow => return Ok(flow),
                 };
                 let Some(slot) = frame.get_mut(symbol) else {
                     return Err(self.runtime_error(
@@ -295,7 +309,7 @@ impl<'a> Interpreter<'a> {
                 for arg in args {
                     match self.eval_expr(arg, frame)? {
                         Flow::Value(value) => values.push(value),
-                        Flow::Return(value) => return Ok(Flow::Return(value)),
+                        flow => return Ok(flow),
                     }
                 }
                 let value = match callee {
@@ -311,7 +325,7 @@ impl<'a> Interpreter<'a> {
             } => {
                 let condition = match self.eval_expr(condition, frame)? {
                     Flow::Value(value) => value,
-                    Flow::Return(value) => return Ok(Flow::Return(value)),
+                    flow => return Ok(flow),
                 };
                 let Value::Bool(condition) = condition else {
                     return Err(self.runtime_error(
@@ -569,5 +583,47 @@ mod tests {
             .expect_err("malformed HIR local should fail");
         assert_eq!(error.code, "E9004");
         assert_eq!(interpreter.call_depth, 0);
+    }
+
+    #[test]
+    fn escaped_loop_control_in_malformed_hir_preserves_keyword_span() {
+        use hydra_hir::HirStmt;
+
+        let function_span = Span::new(SourceId::new(4), 0, 38);
+        for (statement, keyword_span) in [
+            (
+                HirStmt::Break {
+                    span: Span::new(SourceId::new(4), 12, 17),
+                },
+                Span::new(SourceId::new(4), 12, 17),
+            ),
+            (
+                HirStmt::Continue {
+                    span: Span::new(SourceId::new(4), 20, 28),
+                },
+                Span::new(SourceId::new(4), 20, 28),
+            ),
+        ] {
+            let program = HirProgram {
+                functions: vec![HirFunction {
+                    id: FunctionId(0),
+                    name: "main".to_owned(),
+                    params: Vec::new(),
+                    return_type: Type::Unit,
+                    body: HirBlock {
+                        statements: vec![statement],
+                        tail: None,
+                        ty: Type::Never,
+                        span: function_span,
+                    },
+                    span: function_span,
+                }],
+            };
+            let result = execute(&program);
+            assert_eq!(result.value, None);
+            assert_eq!(result.diagnostics.len(), 1);
+            assert_eq!(result.diagnostics[0].code, "E9004");
+            assert_eq!(result.diagnostics[0].primary, keyword_span);
+        }
     }
 }

@@ -1,0 +1,6 @@
+fn main() {
+ while true {
+ break 1
+ continue(3)
+ }
+}

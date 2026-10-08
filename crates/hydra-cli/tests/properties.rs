@@ -156,6 +156,8 @@ fn parser_terminates_for_generated_token_streams_without_eof_contract() {
         TokenKind::Else,
         TokenKind::While,
         TokenKind::Return,
+        TokenKind::Break,
+        TokenKind::Continue,
         TokenKind::LeftParen,
         TokenKind::RightParen,
         TokenKind::LeftBrace,
@@ -270,5 +272,53 @@ fn deliberate_edge_policies_have_stable_diagnostics() {
         for diagnostic in &first.diagnostics {
             assert_source_span(diagnostic.primary, SourceId::new(0), source);
         }
+    }
+}
+
+#[test]
+fn d001_generated_nested_loop_control_is_deterministic_and_locally_consumed() {
+    for depth in 1..=24 {
+        let mut source = String::from("fn main() {\n");
+        for _ in 0..depth {
+            source.push_str("while true {\n");
+        }
+        for _ in 0..depth {
+            source.push_str("break\n}\n");
+        }
+        source.push_str("println(7)\n}\n");
+        let compiled = compile("d001-generated.hyd", &source);
+        assert!(
+            compiled.diagnostics.is_empty(),
+            "depth {depth}: {:?}",
+            compiled.diagnostics
+        );
+        let program = compiled.hir.expect("valid nested loops");
+        let first = hydra_runtime::execute(&program);
+        let second = hydra_runtime::execute(&program);
+        assert_eq!(first.output, "7\n");
+        assert_eq!(first.output, second.output);
+        assert_eq!(first.diagnostics, second.diagnostics);
+        assert!(
+            first.diagnostics.is_empty(),
+            "depth {depth}: {:?}",
+            first.diagnostics
+        );
+
+        // The inner condition belongs to its outer loop, not its own body.
+        let invalid = format!(
+            "fn main() {{\n while {{\n {keyword}\n }} {{}}\n}}\n",
+            keyword = if depth % 2 == 0 { "break" } else { "continue" }
+        );
+        let first = compile("d001-invalid.hyd", &invalid);
+        let second = compile("d001-invalid.hyd", &invalid);
+        assert_eq!(first.diagnostics, second.diagnostics);
+        let code = if depth % 2 == 0 { "E3010" } else { "E3011" };
+        assert!(
+            first.diagnostics.iter().any(|d| d.code == code
+                && &invalid[d.primary.start..d.primary.end]
+                    == if depth % 2 == 0 { "break" } else { "continue" }),
+            "{:#?}",
+            first.diagnostics
+        );
     }
 }

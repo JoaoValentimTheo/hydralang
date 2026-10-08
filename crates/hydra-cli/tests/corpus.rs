@@ -153,6 +153,32 @@ fn passing_programs_execute_with_expected_output() {
         ),
         ("tests/programs/pass/runtime/call_depth_limit_ok.hyd", "0\n"),
         ("tests/programs/pass/runtime/finite_loop.hyd", "1000\n"),
+        ("tests/programs/pass/control_flow/d001_break.hyd", "1\n2\n"),
+        (
+            "tests/programs/pass/control_flow/d001_continue.hyd",
+            "1\n3\n",
+        ),
+        (
+            "tests/programs/pass/control_flow/d001_nested_condition.hyd",
+            "7\n",
+        ),
+        (
+            "tests/programs/pass/control_flow/d001_branches.hyd",
+            "2\n7\n",
+        ),
+        ("tests/programs/pass/control_flow/d001_strict.hyd", "2\n"),
+        (
+            "tests/programs/pass/control_flow/d001_short_circuit.hyd",
+            "false\ntrue\n",
+        ),
+        (
+            "tests/programs/pass/control_flow/d001_return_continue.hyd",
+            "7\n",
+        ),
+        (
+            "tests/programs/pass/control_flow/d001_assignment.hyd",
+            "10\n",
+        ),
     ];
 
     for (path, expected_output) in cases {
@@ -318,6 +344,46 @@ fn negative_compile_programs_report_the_expected_code() {
             "tests/programs/fail/type/invalid_unary.hyd",
             "E3003",
             Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d001_break_outside.hyd",
+            "E3010",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d001_continue_outside.hyd",
+            "E3011",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d001_own_condition.hyd",
+            "E3010",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d001_function_barrier.hyd",
+            "E3011",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/parser/d001_break_operand.hyd",
+            "E1101",
+            Phase::Parser,
+        ),
+        (
+            "tests/programs/fail/parser/d001_continue_operand.hyd",
+            "E1101",
+            Phase::Parser,
+        ),
+        (
+            "tests/programs/fail/parser/d001_reserved_break.hyd",
+            "E1101",
+            Phase::Parser,
+        ),
+        (
+            "tests/programs/fail/parser/d001_reserved_continue.hyd",
+            "E1101",
+            Phase::Parser,
         ),
     ];
 

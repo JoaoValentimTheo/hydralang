@@ -48,6 +48,12 @@ pub enum HirStmt {
         body: HirBlock,
         span: Span,
     },
+    Break {
+        span: Span,
+    },
+    Continue {
+        span: Span,
+    },
     Return {
         value: Option<HirExpr>,
         span: Span,

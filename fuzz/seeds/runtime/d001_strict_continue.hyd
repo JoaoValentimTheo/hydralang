@@ -1,0 +1,15 @@
+fn main() {
+    let mut i = 0
+    while i < 2 {
+        i = i + 1
+        println({
+            continue
+        })
+    }
+    while true {
+        1 + {
+            break
+        }
+    }
+    println(i)
+}

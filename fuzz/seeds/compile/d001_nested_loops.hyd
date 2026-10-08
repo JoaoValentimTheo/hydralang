@@ -1,0 +1,11 @@
+fn main() {
+    while true {
+        while {
+            break
+        } {
+            println(99)
+        }
+        println(99)
+    }
+    println(7)
+}

@@ -14,6 +14,8 @@ pub enum TokenKind {
     Else,
     While,
     Return,
+    Break,
+    Continue,
     True,
     False,
     LeftParen,
@@ -300,6 +302,8 @@ impl<'a> Lexer<'a> {
             "else" => TokenKind::Else,
             "while" => TokenKind::While,
             "return" => TokenKind::Return,
+            "break" => TokenKind::Break,
+            "continue" => TokenKind::Continue,
             "true" => TokenKind::True,
             "false" => TokenKind::False,
             _ => TokenKind::Identifier(text.to_owned()),
@@ -388,5 +392,15 @@ mod tests {
             result.tokens.last().map(|token| &token.kind),
             Some(TokenKind::Eof)
         ));
+    }
+
+    #[test]
+    fn loop_control_keywords_are_reserved_but_longer_words_remain_identifiers() {
+        let text = "break continue breakfast continued";
+        let tokens = lex(SourceId::new(0), text).tokens;
+        assert!(matches!(tokens[0].kind, TokenKind::Break));
+        assert!(matches!(tokens[1].kind, TokenKind::Continue));
+        assert!(matches!(&tokens[2].kind, TokenKind::Identifier(name) if name == "breakfast"));
+        assert!(matches!(&tokens[3].kind, TokenKind::Identifier(name) if name == "continued"));
     }
 }

@@ -22,6 +22,166 @@ struct FunctionSignature {
     return_type: Type,
 }
 
+// A bounded control-flow summary. `Never` describes the absence of a normal
+// *value*; this summary retains the reason control did not fall through.
+#[derive(Clone, Copy, Debug, Default)]
+struct Outcome {
+    falls_through: bool,
+    returns: bool,
+    breaks: bool,
+    continues: bool,
+    may_diverge: bool,
+}
+
+impl Outcome {
+    const NORMAL: Self = Self {
+        falls_through: true,
+        returns: false,
+        breaks: false,
+        continues: false,
+        may_diverge: false,
+    };
+
+    // Both branches can execute, so either branch's effects are possible.
+    fn either(self, other: Self) -> Self {
+        Self {
+            falls_through: self.falls_through || other.falls_through,
+            returns: self.returns || other.returns,
+            breaks: self.breaks || other.breaks,
+            continues: self.continues || other.continues,
+            may_diverge: self.may_diverge || other.may_diverge,
+        }
+    }
+
+    // The next operation is reached only on an ordinary path from `self`.
+    fn then(self, next: Self) -> Self {
+        Self {
+            falls_through: self.falls_through && next.falls_through,
+            returns: self.returns || (self.falls_through && next.returns),
+            breaks: self.breaks || (self.falls_through && next.breaks),
+            continues: self.continues || (self.falls_through && next.continues),
+            may_diverge: self.may_diverge || (self.falls_through && next.may_diverge),
+        }
+    }
+}
+
+fn block_outcome(block: &HirBlock) -> Outcome {
+    let mut result = Outcome::NORMAL;
+    for statement in &block.statements {
+        result = result.then(stmt_outcome(statement));
+    }
+    if let Some(tail) = &block.tail {
+        result = result.then(expr_outcome(tail));
+    }
+    result
+}
+
+fn stmt_outcome(stmt: &HirStmt) -> Outcome {
+    match stmt {
+        HirStmt::Let { init, .. } | HirStmt::Expr(init) => expr_outcome(init),
+        HirStmt::Break { .. } => Outcome {
+            breaks: true,
+            ..Outcome::default()
+        },
+        HirStmt::Continue { .. } => Outcome {
+            continues: true,
+            ..Outcome::default()
+        },
+        HirStmt::Return { value, .. } => {
+            let operand = value.as_ref().map_or(Outcome::NORMAL, expr_outcome);
+            operand.then(Outcome {
+                returns: true,
+                ..Outcome::default()
+            })
+        }
+        HirStmt::While {
+            condition, body, ..
+        } => {
+            // The condition runs at the *outer* loop depth; only body effects
+            // are consumed by this while. A false condition may skip its body.
+            let condition_effect = expr_outcome(condition);
+            let body_effect = block_outcome(body);
+            let loop_effect = Outcome {
+                falls_through: true,
+                returns: body_effect.returns,
+                breaks: false,
+                continues: false,
+                may_diverge: body_effect.may_diverge,
+            };
+            condition_effect.then(loop_effect)
+        }
+    }
+}
+
+fn expr_outcome(expr: &HirExpr) -> Outcome {
+    match &expr.kind {
+        HirExprKind::Literal(_) | HirExprKind::Local(_) => Outcome::NORMAL,
+        HirExprKind::Unary { operand, .. } => expr_outcome(operand),
+        HirExprKind::Assign { value, .. } => expr_outcome(value),
+        HirExprKind::Binary { left, op, right } => {
+            let lhs = expr_outcome(left);
+            let rhs = expr_outcome(right);
+            if matches!(op, HirBinaryOp::And | HirBinaryOp::Or) {
+                let is_skipped = matches!(
+                    (&left.kind, op),
+                    (
+                        HirExprKind::Literal(HirLiteral::Bool(false)),
+                        HirBinaryOp::And
+                    ) | (
+                        HirExprKind::Literal(HirLiteral::Bool(true)),
+                        HirBinaryOp::Or
+                    )
+                );
+                let is_always_evaluated = matches!(
+                    (&left.kind, op),
+                    (
+                        HirExprKind::Literal(HirLiteral::Bool(true)),
+                        HirBinaryOp::And
+                    ) | (
+                        HirExprKind::Literal(HirLiteral::Bool(false)),
+                        HirBinaryOp::Or
+                    )
+                );
+                if is_skipped {
+                    lhs
+                } else if is_always_evaluated {
+                    lhs.then(rhs)
+                } else {
+                    lhs.then(Outcome::NORMAL.either(rhs))
+                }
+            } else {
+                lhs.then(rhs)
+            }
+        }
+        HirExprKind::Call { args, .. } => {
+            let args_effect = args.iter().fold(Outcome::NORMAL, |outcome, arg| {
+                outcome.then(expr_outcome(arg))
+            });
+            if expr.ty == Type::Never {
+                args_effect.then(Outcome {
+                    may_diverge: true,
+                    ..Outcome::default()
+                })
+            } else {
+                args_effect
+            }
+        }
+        HirExprKind::If {
+            condition,
+            then_branch,
+            else_branch,
+        } => {
+            let branches = block_outcome(then_branch).either(
+                else_branch
+                    .as_ref()
+                    .map_or(Outcome::NORMAL, |branch| expr_outcome(branch)),
+            );
+            expr_outcome(condition).then(branches)
+        }
+        HirExprKind::Block(block) => block_outcome(block),
+    }
+}
+
 #[must_use]
 pub fn check(program: &Program, resolution: &Resolution) -> CheckResult {
     Checker::new(program, resolution).run()
@@ -33,6 +193,7 @@ struct Checker<'a> {
     signatures: BTreeMap<FunctionId, FunctionSignature>,
     local_types: BTreeMap<SymbolId, Type>,
     current_return: Type,
+    loop_depth: usize,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -44,6 +205,7 @@ impl<'a> Checker<'a> {
             signatures: BTreeMap::new(),
             local_types: BTreeMap::new(),
             current_return: Type::Unit,
+            loop_depth: 0,
             diagnostics: Vec::new(),
         }
     }
@@ -60,6 +222,7 @@ impl<'a> Checker<'a> {
             };
             self.local_types.clear();
             self.current_return = signature.return_type.clone();
+            self.loop_depth = 0;
 
             let mut params = Vec::new();
             for (param, ty) in function.params.iter().zip(signature.params.iter()) {
@@ -151,17 +314,20 @@ impl<'a> Checker<'a> {
 
     fn check_block(&mut self, block: &Block) -> HirBlock {
         let mut statements = Vec::new();
-        let mut terminated = false;
+        let mut outcome = Outcome::NORMAL;
         for stmt in &block.statements {
             let hir = self.check_stmt(stmt);
-            terminated |= stmt_diverges(&hir);
+            outcome = outcome.then(stmt_outcome(&hir));
             statements.push(hir);
         }
         let tail = block
             .tail
             .as_ref()
             .map(|expr| Box::new(self.check_expr(expr)));
-        let ty = if terminated {
+        let tail_outcome = tail
+            .as_ref()
+            .map_or(Outcome::NORMAL, |expr| expr_outcome(expr));
+        let ty = if !outcome.then(tail_outcome).falls_through {
             Type::Never
         } else {
             tail.as_ref().map_or(Type::Unit, |expr| expr.ty.clone())
@@ -219,12 +385,26 @@ impl<'a> Checker<'a> {
                     condition.span,
                     "while condition",
                 );
+                self.loop_depth += 1;
                 let body = self.check_block(body);
+                self.loop_depth -= 1;
                 HirStmt::While {
                     condition,
                     body,
                     span: *span,
                 }
+            }
+            Stmt::Break { span } => {
+                if self.loop_depth == 0 {
+                    self.type_error("E3010", "`break` outside of a while body", *span);
+                }
+                HirStmt::Break { span: *span }
+            }
+            Stmt::Continue { span } => {
+                if self.loop_depth == 0 {
+                    self.type_error("E3011", "`continue` outside of a while body", *span);
+                }
+                HirStmt::Continue { span: *span }
             }
             Stmt::Return { value, span } => {
                 let value = value.as_ref().map(|expr| self.check_expr(expr));
@@ -574,7 +754,17 @@ impl<'a> Checker<'a> {
                 {
                     Type::Never
                 }
-                BinaryOp::And | BinaryOp::Or if left.ty == Type::Bool => Type::Bool,
+                BinaryOp::And | BinaryOp::Or if left.ty == Type::Bool => {
+                    // A statically known left operand can force evaluation of
+                    // the Never-typed RHS, leaving no normal Boolean value.
+                    // Otherwise short-circuiting still supplies a Bool path.
+                    let forces_rhs = matches!(
+                        (&left.kind, op),
+                        (HirExprKind::Literal(HirLiteral::Bool(true)), BinaryOp::And)
+                            | (HirExprKind::Literal(HirLiteral::Bool(false)), BinaryOp::Or)
+                    );
+                    if forces_rhs { Type::Never } else { Type::Bool }
+                }
                 _ => {
                     self.type_error(
                         "E3003",
@@ -667,15 +857,6 @@ impl<'a> Checker<'a> {
     fn internal(&mut self, message: &'static str, span: Span) {
         self.diagnostics
             .push(Diagnostic::error("E9003", Phase::Internal, message, span));
-    }
-}
-
-fn stmt_diverges(stmt: &HirStmt) -> bool {
-    match stmt {
-        HirStmt::Return { .. } => true,
-        HirStmt::Expr(expr) => expr.ty == Type::Never,
-        HirStmt::Let { init, .. } => init.ty == Type::Never,
-        HirStmt::While { condition, .. } => condition.ty == Type::Never,
     }
 }
 
