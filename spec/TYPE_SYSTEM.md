@@ -18,9 +18,9 @@ The builtin registry contains exactly `print` and `println`. Both take one print
 
 Unreachable source is still type-checked. Hydra 0.1 does not suppress type errors merely because an earlier statement in the same block is known to diverge.
 
-## Hydra 0.2 accepted loop-control and effect contract — implementation pending
+## Hydra 0.2 accepted loop-control and effect contract — D001 implemented and frozen
 
-D001 accepts value-less `break` and `continue` statements for `while` only. The following rules are **normative for Hydra 0.2**, but are **not implemented** in the Hydra 0.1 checker. The historical 0.1 behavior above remains unchanged.
+D001 accepts value-less `break` and `continue` statements for `while` only. The following rules are **normative for Hydra 0.2 and implemented in the current post-D001 checker**. The 0.1-only descriptions above are historical; see `HYDRA_0_2_D001_FREEZE.md` for frozen implementation and regression evidence.
 
 ### Placement and distinct outcomes
 
@@ -54,4 +54,20 @@ Boolean `&&` and `||` retain short-circuit evaluation. A right-hand loop effect 
 
 `while` remains **statement-style**, yielding `Unit` on normal completion; `break` has no value. A condition can be false before the body executes, so even a body that always breaks, continues, or returns does not prove that its surrounding `while` is `Never`. No constant-true or termination proof is required. The loop consumes its **body's** reachable `breaks` and `continues`; it propagates reachable `returns` and possible divergence. Effects emitted while evaluating its **condition** belong to the surrounding loop context and are never consumed by the newly entered `while`. If the condition has no possible normal outcome, the loop must preserve that non-normal outcome instead of inventing a normal `Unit` result.
 
-These rules lock the D001 source-language semantics; implementation and regressions require a separate campaign. No labels, value-carrying control, expression loops, generalized effect system or MIR/SSA change is accepted.
+These rules lock the implemented and frozen D001 source-language semantics. No labels, value-carrying control, expression loops, generalized effect system or MIR/SSA change is accepted.
+
+## Hydra 0.2 D002 accepted structural tuple types — implementation pending
+
+Human acceptance on 2026-10-08 locks the following **normative future D002 semantics**; the current compiler has no tuple type, tuple expression or positional projection support. The frozen D001 type and path-effect behavior above remains implemented and unchanged.
+
+Tuple types are ordered, fixed-arity, heterogeneous structural products: `(Int, String)` equals only a tuple type with the same ordered element types and arity. Thus `(Int, String)` differs from `(String, Int)`, and `(Int,)` differs from `Int`. Nested forms such as `((Int, String), Bool)` are structural. `()` is `Unit`, `(T)` is grouping of type `T`, and `(T,)` is a singleton tuple type; `(Unit,)` differs from `Unit`. A trailing comma is permitted on nonempty tuple types. No nominal tuple name, tuple width conversion, variance, subtyping, numeric coercion, generic `Name<T>` application, or other collection family is introduced.
+
+The future `TypeExpr` representation must structurally distinguish primitive names, grouped types and tuples, with accurate spans. Tuple annotations may appear wherever a type is currently accepted, including parameter, return and local annotations. `let pair = (1, "ready")` independently infers `(Int, String)` in element source order. Annotations and inferred types use the same structural identity for parameters, assignments, returns and branch checking. `Type::join(Never, T) = T` applies at the **whole-expression** level; two ordinarily returning tuple types join only if structurally identical, otherwise the existing incompatible-branch/type-mismatch diagnostic applies. There is no elementwise tuple promotion or coercion.
+
+Tuple construction is strict left to right. Each element is statically checked even if earlier elements prevent execution; runtime evaluates only reachable elements. If an element has no normal completion, the **whole tuple expression** has normal-value type `Never` and preserves the particular D001 path effects (`Return`, `Break`, `Continue`, divergence) independently of its type. A declared structural `Tuple(..., Never, ...)` remains a well-formed but uninhabited element position; it is **not** the same type as whole-expression `Never`. Later elements contribute effects only on normal fallthrough paths, with exactly the frozen D001 sequence/effect rules.
+
+Read-only `t.0` projection requires a normally valued tuple operand, and the checker determines the resulting field type from the static zero-based index. Chaining `t.0.1` projects successively; projection from a whole-expression `Never` base is itself `Never` and propagates existing effects. Projection from a normally valued non-tuple reports **E3012**; an out-of-bounds static index reports **E3013**, with the dot-through-index span. Assignment to `t.0` remains invalid (E1104), because projection is never a mutable place.
+
+Two tuple expressions may use `==` and `!=` only for **identical static tuple types**, following the existing equality operand policy. Equality compares corresponding fields in order, stopping on the first inequality; `!=` is its negation. Nested Float fields retain IEEE semantics (`NaN != NaN`), including when aggregate storage is shared. Tuple `<`, `<=`, `>` and `>=` are invalid (E3003). An entire tuple argument to `print` or `println` is unsupported (existing E3007), because the builtins remain primitive-only; a projected printable primitive remains allowed. No tuple hash, total ordering, source formatting, destructuring or mutation contract is accepted.
+
+Parser checks cap tuple arity at **64** (E1101), tuple-type nesting at **64 tuple layers per path** (E1105), and preserve existing parser syntax/expression depth guards (E1105/E1106). Type traversal of adversarial internal structures must avoid unbounded host recursion. These are obligations for the separately authorized implementation campaign, not implemented features.

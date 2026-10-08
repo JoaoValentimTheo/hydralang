@@ -56,9 +56,9 @@ These concepts occupy different layers and must not be conflated:
 
 The runtime's ordinary expression result is `Flow::Value(Value)`. `Flow::Return` propagates outward through strict expression evaluation, blocks, conditional branches, loops, and pending calls until the current function call consumes it and converts the carried value into that call's result. A block stops immediately on `Return`; `if` returns the selected branch flow; `while` propagates `Return` from its condition or body; argument evaluation propagates `Return` before a call is made.
 
-Future `Break` and `Continue` can extend the same control-flow effect model without changing Hydra 0.1 today: the runtime flow representation can gain loop-control variants, loops can consume the variant targeted at themselves, and other expression/block layers can propagate it. The checker will then need a richer control-effect analysis than the current `Never`/statement-divergence summary so that loop exits and function returns are not conflated. This is known extension pressure, not a reason to implement those constructs in 0.1.
+Hydra 0.2 D001 has extended this control-flow model with `Break` and `Continue`, implemented under a separately accepted and frozen contract. The description of 0.1 above is historical. D001's checker tracks distinct path effects rather than conflating loop exits with `Never`, statement termination or function returns.
 
-### Hydra 0.2 accepted future transition (D001; implementation pending)
+### Hydra 0.2 D001 accepted transition — implemented and frozen
 
 The normative D001 pipeline adds a distinct control state at each existing layer:
 
@@ -70,7 +70,36 @@ source break / continue statement
 -> nearest eligible while consumes its own body effect
 ```
 
-The checker tracks normal fallthrough, return, break, continue, and potential divergence separately from `Never`'s normal-value bottom typing. Only a `while` **body** introduces its loop target: while checking/evaluating a new `while` condition, the surrounding loop target remains active. Condition effects are propagated and must not be consumed by the new loop. Functions reset loop context and are barriers to escaped effects. Invalid typed HIR that escapes `Break` or `Continue` across a function boundary reports E9004 with the keyword span. Future runtime transitions must charge the existing per-iteration budget tick on `Continue` before reevaluating the condition (E4006 on exhaustion). These are **accepted future transitions**, not Hydra 0.1 implementation behavior.
+The checker tracks normal fallthrough, return, break, continue, and potential divergence separately from `Never`'s normal-value bottom typing. Only a `while` **body** introduces its loop target: while checking/evaluating a new `while` condition, the surrounding loop target remains active. Condition effects are propagated and must not be consumed by the new loop. Functions reset loop context and are barriers to escaped effects. Invalid typed HIR that escapes `Break` or `Continue` across a function boundary reports E9004 with the keyword span. Runtime transitions charge the existing per-iteration budget tick on `Continue` before reevaluating the condition (E4006 on exhaustion). These are **implemented post-D001 transitions**, verified in `HYDRA_0_2_D001_FREEZE.md`.
+
+### Hydra 0.2 D002 tuple transitions — accepted, not implemented
+
+The separately accepted normative D002 pipeline must extend existing phase transitions without weakening their invariants. No such tuple transitions exist in executable code as of this acceptance record:
+
+```text
+source tuple/type/projection syntax
+-> lexer: Dot + decimal Int after Dot; ordinary Float remains unchanged
+-> parser/AST: parenthesized unit/group/tuple disambiguation;
+               recursive tuple type with 64-layer limit;
+               tuple literal and constant projection nodes with spans
+-> resolver: recurse into tuple elements and projection bases under existing scopes
+-> checker: structural ordered type identity, inferred elements, typed projection,
+            D001 left-to-right path effects, matching-type equality
+-> typed HIR: explicit tuple construction/projection, with spans and types
+-> runtime: evaluate elements left to right into shared immutable storage;
+            project checked constant field; bounded, fuel-charged tuple equality
+-> normal Value / D001 Return-Break-Continue / diagnostic
+```
+
+**Lexer state:** after a projection `Dot`, a numeric index token consumes digits alone; it cannot absorb a following dot and digits as a Float. Ordinary float lexing and newline tokenization remain intact. This contextual distinction must reset after processing the index, including malformed syntax/recovery, and must never leak to unrelated numeric tokens.
+
+**Parser state:** `()` stays Unit, `(expr)` grouping, and `(expr,)` a singleton tuple. A nonempty tuple requires a comma. Tuple types have matching grouping/Unit/singleton rules. At most 64 tuple fields are accepted (E1101); type paths have at most 64 tuple layers (E1105). Existing `MAX_PARSE_DEPTH = 128`, `MAX_EXPR_DEPTH = 256`, synthetic EOF, parser progress, depth restoration and bounded synchronization remain unchanged. The iterative expression-depth walker must traverse **every** tuple element and projection base (E1106), including malformed/recovery paths. Oversized decimal projection indices report E1102 without truncation; assigning to a projection reports E1104.
+
+**Resolver/checker state:** tuple elements are visited in source order, and projections traverse their base without introducing lexical scopes or mutable locations. Per-function symbol/type/effect contexts reset as before. The checker infers and matches ordered tuple types exactly; E3012 diagnoses projection on a normally valued non-tuple, E3013 diagnoses out-of-range access, both with dot-through-index spans. A base with no normal value propagates the original D001 effect, independently of `Never` typing. Unreachable source is still checked, but unreachable expression effects must not become reachable path outcomes.
+
+**HIR/runtime state:** construction and projection have dedicated typed HIR representations. The interpreter never exposes a partially initialized tuple. Each completed element snapshots its value; aggregate storage is shared and immutable across reads/calls/returns. A nested projection or tuple equality propagates Return/Break/Continue and errors according to frozen D001 semantics. Equality uses an iterative tuple-pair worklist and pair memoization that never skips first-visit descendant scalar equality, including shared NaN. Pair/field work consumes the existing 1,000,000-step fuel (E4006); malformed typed HIR or aggregate shape reports E9004 rather than panicking or indexing unchecked. Nonrecursive opaque host display, and rejection of source whole-tuple `print`/`println`, prevent accidental recursive formatting.
+
+Acceptance of D002 defines **future transition obligations only**. Frozen D001 behavior, parser state guards, per-function resets, runtime call-depth restoration and diagnostic unwinding are unchanged. Implementation tests, corpus and fuzz cases require a separate authorization.
 
 ## Function-call lifecycle
 
@@ -84,7 +113,7 @@ function lookup
 -> parameter binding
 -> call_depth increment
 -> body evaluation
--> Flow::Value / Flow::Return / diagnostic
+-> Flow::Value / Flow::Return / Flow::Break or Flow::Continue (invalid across function boundary: E9004) / diagnostic
 -> call_depth decrement
 -> frame destruction
 -> caller continuation or diagnostic propagation

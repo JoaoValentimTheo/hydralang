@@ -6,9 +6,9 @@ Hydra 0.1 is preserved; Hydra 0.2 is **IN PROGRESS**. This is governance, not im
 
 `break` / `continue` is **ACCEPTED, IMPLEMENTED, AUDITED, FROZEN** at `764b901ec8a0f0febfb3624c392d27f14b631ff4`. See `docs/decisions/001-loop-control.md` and `HYDRA_0_2_D001_FREEZE.md`. Its lexical targeting, D001 checker path outcomes, HIR and runtime effects, and E3010/E3011 checks are no longer open candidate questions. D001 is preserved without reopening its contract.
 
-## Selected second family: D002 Tuple — PROPOSED
+## Selected second family: D002 Tuple — ACCEPTED / NORMATIVE CONTRACT LOCKED
 
-Exactly **one** second-family design has been selected: immutable ordered **structural Tuple** with parenthesized comma literal/type forms and read-only positional projection. The full design is `docs/decisions/002-tuples.md` (**PROPOSED; HUMAN APPROVAL REQUIRED**) and the post-D001 selection analysis is `HYDRA_0_2_D002_DESIGN_GATE.md`. **D002 IMPLEMENTATION NOT STARTED.** This design does not itself authorize specification edits or changes to the compiler, runtime, corpus or fuzz targets. Revisit only upon explicit human decision.
+Exactly **one** second-family design is human-approved on 2026-10-08: immutable ordered **structural Tuple** with parenthesized comma literal/type forms, read-only constant positional projection, matching-type equality and bounded shared storage. The **ACCEPTED** and locked contract is `docs/decisions/002-tuples.md`; the historical selection analysis is `HYDRA_0_2_D002_DESIGN_GATE.md`; the approval ledger is `HYDRA_0_2_D002_ACCEPTANCE.md`. The normative grammar, type, execution, lexical, diagnostics and state-machine documents now describe the accepted **future** tuple behavior. **D002 IMPLEMENTATION NOT STARTED.** Production Rust, tests, corpus, fuzzing, releases, tags and D003 remain unauthorized by this acceptance. The next action is a separately authorized D002 implementation campaign.
 
 ## Unselected and deferred families
 
@@ -40,4 +40,4 @@ Open: nominal `struct`/`enum` identities, declaration and constructor rules, fie
 
 Open: parameter binders, substitution, inference/instantiation, identity and runtime/backend strategy. Generic functions can be considered independently from generic ADTs; a future builtin `List<T>` does not imply user generics are accepted.
 
-Native code generation, WebAssembly, package management, LSP, REPL and web tooling remain outside this semantic decision queue until their prerequisites are documented. The next action is **human review of D002**; no D003 is selected.
+Native code generation, WebAssembly, package management, LSP, REPL and web tooling remain outside this semantic decision queue until their prerequisites are documented. **D003 is not selected or authorized.**

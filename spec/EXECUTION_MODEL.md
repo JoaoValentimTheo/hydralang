@@ -12,9 +12,9 @@ Execution begins at `main`, which must exist and take no parameters. Blocks and 
 
 Runtime never executes statements after a propagated `return`. The compiler may still have resolved and type-checked such source before HIR execution, as specified by the 0.1 unreachable-code policy.
 
-## Hydra 0.2 accepted loop-control execution — implementation pending
+## Hydra 0.2 accepted loop-control execution — D001 implemented and frozen
 
-This is the accepted D001 **normative execution contract**, not a claim that Hydra 0.1 currently implements `break` or `continue`. The conceptual interpreter channel expands to:
+This is the accepted and **implemented/frozen** D001 normative execution contract, extending the historical 0.1 subset described above. The interpreter channel is conceptually:
 
 ```text
 Flow::Value(Value)
@@ -29,4 +29,16 @@ The precise Rust representation is not fixed by this contract. Dedicated AST/typ
 
 Every function call creates a loop-control boundary: valid source cannot transfer a `Break` or `Continue` from inside a called function to the caller's loop. If malformed typed HIR lets either effect escape a function or entry boundary, the interpreter must diagnose the originating keyword span as **internal E9004**. This is an invariant failure, not a source placement diagnostic (E3010/E3011). The entry and call boundaries must not silently convert escaping effects to `Unit` or `Return`.
 
-The deterministic **1,000,000-step** reference-interpreter budget stays in force. The existing per-iteration boundary `tick` must be charged even when a loop body reaches `continue`, **before the next evaluation of the condition**. Therefore `while true { continue }` must exhaust fuel with E4006 rather than evade the limit. `break` may exit without an additional iteration charge. No new budget limit is introduced; this accepts a future execution path under the existing reference-interpreter resource policy.
+The deterministic **1,000,000-step** reference-interpreter budget stays in force. The existing per-iteration boundary `tick` is charged even when a loop body reaches `continue`, **before the next evaluation of the condition**. Therefore `while true { continue }` exhausts fuel with E4006 rather than evading the limit. `break` may exit without an additional iteration charge. No new budget limit was introduced by D001; see `HYDRA_0_2_D001_FREEZE.md`.
+
+## Hydra 0.2 D002 accepted tuple execution — implementation pending
+
+The following is the **accepted, locked D002 runtime contract**, not current executable behavior. Tuple values are immutable, fixed-length, ordered and heterogeneous. Construction evaluates each element **once, in source order**, using D001's existing left-to-right strict evaluation. If an element transfers `Return`, `Break`, `Continue`, diverges or raises a runtime diagnostic, later elements do not execute, no partly built tuple becomes observable, and the original effect/diagnostic propagates unchanged. Projection evaluates its base first; a non-normal effect propagates before any field read.
+
+Tuple construction snapshots each completed element's value under Hydra's value semantics. Rebinding a local afterward cannot change a previously created field. Reading, passing, returning and projecting a tuple must preserve **shared immutable aggregate storage** (e.g. `Rc<[Value]>` or an equivalent persistent representation); deep-copying a potentially exponentially expanded aggregate graph is prohibited. A projection retrieves a field value without introducing a mutable location, and source-created tuples cannot form cycles.
+
+For equal static tuple types, `==` compares fields in index order and stops at the first unequal value; `!=` negates that result. Recursive nested tuple equality must use an **iterative worklist or equivalently bounded traversal** with tuple-pair identity memoization to avoid exponential work on shared DAGs. A first-seen pair, even the **same physical node on both sides**, must still account for descendant scalar comparisons: pointer equality is not sufficient because a nested `Float` NaN is unequal to itself under IEEE semantics. Revisited fully accounted-for pairs may be memoized. Comparison processes tuple pairs and field comparisons under the **existing 1,000,000-step runtime fuel budget**; exhaustion produces E4006. No additional independent equality budget or stack-unbounded structural recursion is accepted.
+
+The `print` and `println` source builtins remain limited to their existing primitive printable argument types; an entire tuple is rejected during checking (E3007). A projected primitive may be printed. Internal Rust `Value::Display`, if necessary, may use only bounded, opaque, nonrecursive display such as `<tuple>`; this does not define a Hydra tuple formatting or serialization facility.
+
+Malformed typed HIR or internal values (non-tuple runtime projection, invalid index, type/value inconsistency or corrupt aggregate) must fail with source-spanned **E9004**, without unchecked indexing, unchecked recursion, panic or memory blowup. The future implementation must retain the source arity/depth guards and bounded adversarial traversal. The D001 flow states, existing scalar semantics, iteration charging and error unwinding remain unchanged. Tuple execution is not implemented, and separately authorized production changes are required.

@@ -1,10 +1,11 @@
 # D002: Structural tuples with constant positional projection
 
-- Status: **Proposed** — human approval required; implementation not started
+- Status: **Accepted** — normative contract locked; implementation not started
 - Date: 2026-10-08
 - Compatibility: **compatible extension** relative to the frozen D001 baseline
 - Supersedes: none
 - Selected family: **Tuple**, and no other Hydra 0.2 family
+- Human approval: **GRANTED on 2026-10-08 after independent architectural review** of the existing lexer, parser, AST, type syntax, resolver/checker, D001 effect model, HIR, interpreter, equality, resource guards and versioning policy. This acceptance authorizes specification changes only; Rust implementation requires a separate human decision.
 
 ## Problem
 
@@ -22,7 +23,7 @@ Hydra can return and pass only primitive values. Programs cannot construct a fix
 
 ### Surface syntax and grammar
 
-The following grammar is **proposed only**; it does not modify the currently implemented grammar:
+The following grammar is **accepted and normative for Hydra 0.2 D002**. It is not yet implemented by the current parser:
 
 ```text
 tuple-expression := "(" expression "," (expression ("," expression)* ","?)? ")"
@@ -70,8 +71,8 @@ Introduce a semantic `Tuple([T0, ..., Tn-1])` type with **ordered** element type
 - Existing **E1102** for a dot integer literal that does not fit the supported unsigned projection-index representation; reject it instead of truncating or panicking.
 - Existing **E1104** for assigning to a projection rather than a mutable name.
 - Existing **E1105/E1106** for parser structural/expression nesting constraints; the tuple AST/type parser and expression-depth walker must explicitly participate.
-- Proposed **E3012**, checker: positional projection on a *normally valued* non-tuple type. Primary span: dot through index.
-- Proposed **E3013**, checker: statically out-of-range positional projection. Primary span: dot through index. Include tuple arity and requested index.
+- Accepted **E3012**, checker: positional projection on a *normally valued* non-tuple type. Primary span: dot through index.
+- Accepted **E3013**, checker: statically out-of-range positional projection. Primary span: dot through index. Include tuple arity and requested index.
 - Existing **E3002/E3003/E3004** for structural type mismatch, equality operand mismatch/non-equality operator, and incompatible branch types, respectively. Existing **E3007** for passing an entire tuple to `print`/`println`; no new builtin overload.
 - Existing **E9003/E9004** for impossible checked-HIR lowering and malformed runtime tuple/projection invariants, with the source span. Do not permit malformed HIR to cause panics or unchecked indexing.
 
@@ -93,7 +94,7 @@ Type constructors without an accepted value family have no executable consumer a
 - **Type system/checker:** add `Type::Tuple` structural equality/display; recursively lower annotated tuple types with guards; infer tuple literals, check constant access/equality, preserve bottom joins and path-sensitive D001 outcomes; keep printable builtins primitive-only.
 - **Typed HIR:** explicit tuple construction and constant tuple projection expressions, each with types, spans, and resolved children; no MIR or generic indexing node.
 - **Runtime/backends:** immutable shared tuple values, safe constant field reads, left-to-right evaluation, D001 effect propagation through element evaluation, bounded iterative structural equality, E9004 malformed-HIR guards; no source tuple printing or mutability.
-- **Diagnostics:** implement proposed E3012/E3013 on acceptance, retain existing parser, type, runtime, and internal code ownership without reusing unrelated codes.
+- **Diagnostics:** implement accepted E3012/E3013 in the separately authorized implementation campaign; retain existing parser, type, runtime, and internal code ownership without reusing unrelated codes.
 
 ## Testing obligations
 
@@ -107,6 +108,8 @@ Properties: type annotation round-trip/structural identity across nesting, deter
 
 **Compatible extension** against frozen D001 behavior. No identifiers become reserved, existing float literals keep their tokenization, and old `()` / `(x)` / grouped type-name behavior is preserved. Newly admitted parenthesized comma expressions/types and tuple-only numeric projections were previously rejected, so neither valid old-source semantics nor its outputs change. Exact diagnostic wording for previously invalid source may change under the existing development policy. Any implementation that reinterprets a previously valid float, call, grouping, assignment, or statement-boundary program violates this decision and requires human review.
 
-## Required normative changes if accepted
+## Normative acceptance and implementation boundary
 
-**Not authorized in this Proposed stage.** Upon explicit human acceptance, update `spec/GRAMMAR.md` (tuple literal/type/projection syntax and lexer-number disambiguation), `spec/TYPE_SYSTEM.md` (ordered structural tuple types, inference, `Never`, equality, non-printable tuple arguments), `spec/EXECUTION_MODEL.md` (immutability/snapshot/projection, order, comparison fuel and malformed-HIR handling), and `docs/ERROR_CODES.md` (E3012/E3013 and arity/nesting ownership). Update `spec/LEXICAL_GRAMMAR.md` only if needed to normatively pin the dot-number rule. Record compatibility and regression evidence in the implementation campaign. **D002 IMPLEMENTATION NOT STARTED.** Human acceptance is a separate gate.
+Human acceptance on **2026-10-08** locks this D002 contract. The accompanying normative changes are `spec/GRAMMAR.md` (syntax, limits, dot-number disambiguation), `spec/TYPE_SYSTEM.md` (structural types, inference, effects, equality and printing), `spec/EXECUTION_MODEL.md` (immutable sharing, evaluation order, bounded comparison and malformed HIR), `docs/ERROR_CODES.md` (E3012/E3013 and retained diagnostics) and `docs/STATE_MACHINE.md` (phase transitions and guard ownership). The acceptance ledger is `HYDRA_0_2_D002_ACCEPTANCE.md`.
+
+**D002 IMPLEMENTATION NOT STARTED.** This record authorizes no Rust, tests, corpus, fuzz, dependency, workflow, tag or release changes. Tuple implementation and verification require a separately authorized campaign. Frozen D001 behavior is unchanged; D003 and other collection families remain deferred.
