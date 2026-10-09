@@ -84,3 +84,22 @@ Constant projections such as `t.0`, `t.1`, `(pair()).0` and `t.0.1` are left-ass
 At most **64 fields** may occur in a tuple expression or type; arity 65 reports E1101 with the tuple syntax span. Tuple **type nesting** is limited to **64 tuple layers along any path**, with excess reported as E1105. Existing `MAX_PARSE_DEPTH = 128` (E1105) and `MAX_EXPR_DEPTH = 256` (E1106) remain unchanged. All tuple children and projection bases participate in the iterative expression-depth check, and tuple-type parsing must obey the syntax/nesting guards and normal progress/recovery rules. Oversized projection integer indices report E1102 without truncation.
 
 This is a **compatible extension** against frozen D001: no new keywords, no changed `()`/grouping semantics, no changed float literals or previously accepted calls. Destructuring, patterns, generic type application, lists, sets, arrays, named fields and other family syntax are not accepted. See `docs/decisions/002-tuples.md`; the implementation is documented in `HYDRA_0_2_D002_IMPLEMENTATION.md`.
+
+## Hydra 0.2 D003 accepted List grammar — NOT IMPLEMENTED
+
+The previous paragraph's exclusions describe **the D002 implementation scope**. D003 separately accepts one future additive List family; the following grammar is **locked as specification only**. The unchanged compiler still rejects these List constructs. D001 and D002 syntax remain implemented and frozen.
+
+```text
+list-literal      := "[" (expression ("," expression)* ","?)? "]"
+index-suffix      := "[" expression "]"
+postfix           := primary (call-suffix | projection-suffix | index-suffix)*
+list-type         := IDENT("List") "<" type-argument-list ">"
+type-argument-list := (type ("," type)*)?  // checker requires exactly one
+type              := existing-D002-type | list-type
+```
+
+`list-literal` accepts `[]`, `[x]`, `[x,y]`, `[x,y,]`, and nested Lists; commas separate elements, never semicolons. List literals have at most **256 elements**; 257 gives parser E1101. An empty literal requires a separate checker-supplied exact expected type in the approved contexts (see `spec/TYPE_SYSTEM.md`). A List type has **exactly one** argument, resolved in a type position without introducing a general `Name<T>` facility or an expression `List` constructor. A syntactically complete `List<>` or `List<Int, Bool>` reaches checker E3017 for incorrect arity; malformed delimiters/comma placement remain parser E1101. Unknown type identifiers remain checker E3001. Nested `List<List<Int>>` must parse two adjacent closing `>` type delimiters; normal expression comparisons retain existing precedence/tokenization.
+
+Postfix indexing binds with existing calls and tuple projections at the same highest precedence and associates left-to-right: `make_list()[0]`, `t.0[i]`, `xs[i].0`. A postfix suffix may not cross a statement-terminating newline; a following statement beginning with `[` starts its own List expression. `base[index]` contains one dynamically evaluated index expression. It does not create a mutable place; `xs[0] = 10` reports E1104. Slicing, multiple comma-separated indices, List assignment-through-index, Set/Array syntax and iterator/comprehension forms remain invalid.
+
+Grouping `()`, `(x)`, `(x,)` and all tuple productions, float `1.25`, projection `.DIGITS`, block `{}` and newline/semicolon boundaries remain unchanged. The parser retains recursive syntax bound **128** (E1105), expression-tree depth **256** (E1106), tuple field cap **64** (E1101), and adds the written combined List/Tuple type-depth cap **64** (E1105). Written aggregate depth 65 is invalid; inferred depth violations belong to the checker (E3014 pure Tuple, E3016 containing List). Missing `]`/`>` and EOF recovery must advance or terminate and restore all parser depth state, preserving valid UTF-8 spans. See `HYDRA_0_2_D003_ACCEPTANCE.md`.

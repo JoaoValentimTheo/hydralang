@@ -103,7 +103,7 @@ source tuple/type/projection syntax
 
 The D002 runtime additionally checks each function argument against its declared HIR parameter type before binding and checks a normal function result against the declared return type after restoring call depth. Tuple shape and nested fields are checked iteratively with existing fuel; malformed HIR returns source-spanned E9004 instead of silently carrying a wrongly typed aggregate across the function boundary.
 
-Acceptance of D002 defines the locked transition obligations. D002 source, integration and runtime regression tests now exercise them; original implementation validation is recorded in `HYDRA_0_2_D002_IMPLEMENTATION.md`, and the subsequent independent adversarial audit in `HYDRA_0_2_D002_AUDIT_AND_FREEZE.md`. Frozen D001 behavior, parser state guards, per-function resets, runtime call-depth restoration and diagnostic unwinding retain their required semantics. The D002 technical freeze becomes effective only on five successful GitHub Actions jobs for the exact final audit/freeze commit SHA; until that verification, D002 is audited but unfrozen.
+Acceptance of D002 defines the locked transition obligations. D002 source, integration and runtime regression tests now exercise them; implementation validation is recorded in `HYDRA_0_2_D002_IMPLEMENTATION.md`, and the subsequent independent adversarial audit in `HYDRA_0_2_D002_AUDIT_AND_FREEZE.md`. Frozen D001 behavior, parser state guards, per-function resets, runtime call-depth restoration and diagnostic unwinding retain their required semantics. The D002 technical freeze was confirmed by five successful GitHub Actions jobs at exact SHA `f91d9829c6964fed8e63b97b0a8a05f7a255e58c` (run `37866987551`).
 
 ## Function-call lifecycle
 
@@ -140,3 +140,68 @@ The budget is a resource policy of the Hydra 0.1 reference interpreter. It is no
 Resolver, checker, and interpreter contain recursive walkers. For source-derived programs, parser structural guards bound the AST that reaches those walkers. Typed HIR is an internal compiler product and inherits that bound. Hand-constructed malformed HIR used by tests is outside the source-language trust boundary; the runtime diagnoses checked invariants such as missing locals, missing functions, arity disagreement, and invalid typed operations with E9004, but Hydra 0.1 does not promise adversarial stack safety for arbitrarily deep externally fabricated HIR.
 
 The relevant regressions live in `hydra-parser`, `hydra-resolve`, `hydra-check`, and `hydra-runtime` unit tests and are exercised by the workspace test gate.
+
+## D003 future List transitions — ACCEPTED, NOT IMPLEMENTED
+
+The following transitions are **normatively locked for future production authorization**; none is part of today's parser/resolver/checker/typed-HIR/runtime implementation. This document remains the **single** state-machine contract. All frozen Hydra 0.1, D001 and tuple-only D002 transitions above continue to apply.
+
+### Parser states and restoration
+
+```text
+bracket in primary position -> List literal start
+-> parse 0..256 comma-separated expressions, optional final comma
+-> consume matching ] -> completed List AST
+bracket following an eligible same-statement postfix base
+-> parse one index expression -> consume ] -> indexed postfix AST
+type-position identifier List followed by < -> parse type arguments
+-> close each > (including adjacent >> in nested type positions)
+-> checker owns valid syntactic arity != 1
+```
+
+Element 257 reports parser E1101 by **element count**, with no unbounded collection expansion. Invalid delimiters, incomplete indices or type punctuation report E1101, and indexed assignment targets E1104. A statement boundary newline must end postfix eligibility, so the next line's `[` begins a new expression. Call `()`, tuple projection `.DIGITS`, and List index `[]` form one left-associative high-precedence postfix chain without changing D002 floats. All List/type subparsers must preserve guaranteed token progress/recovery-to-EOF, restore recursive `depth` on every exit (success, failure, missing `]` or `>`) and preserve the existing expression-depth guard 256. Recursive syntax remains 128 (E1105); written combined List/Tuple depth 65 is E1105 and is checked independently of parser recursion. Tuple arity 64 and recovery behavior are unchanged. UTF-8 spans must describe the correct source boundaries.
+
+### Resolver transitions
+
+```text
+enter ordinary expression / existing scopes
+-> visit List elements in source order, or index base then index operand
+-> resolve names with unchanged lexical -> function -> builtin precedence
+-> exit expression with the same scope stack
+```
+
+No List scopes, names, `List` value constructor, new shadowing restriction or mutable per-element binding are created; `List` is contextual **type-position-only** syntax. The resolver must check all source children including statically unreachable ones, preserve existing error recovery, and never duplicate a checker-owned index/type diagnostic.
+
+### Checker expectation and type/effect transitions
+
+```text
+entry at annotated let / statically typed function actual argument
+  / explicitly declared return tail or return expression
+  / assignment RHS to existing typed mutable local
+-> introduce exact expected List<T> for that direct expression
+entry at directly constructed List or Tuple literal with expected aggregate type
+-> supply each immediate directly constructed literal child its exact member type
+-> recurse only along immediate aggregate-literal edges
+all exits (normal, diagnostic, recovery, end function)
+-> remove contextual expectation; restore previous type, loop and function state
+```
+
+Standalone `[]` without an exact approved expectation is E3015. No expected type propagates from sibling elements, subsequent assignment, arbitrary operators, unrelated branches or enclosing `if` expressions. An independently typed List joins with an identical normal List type, and whole-expression `Never` joins under frozen D001 semantics; it is never used as a fabricated runtime List element. Check each List element, including unreachable children, but gate every child's effects by **normal fallthrough of earlier children**, preserving the distinct Return/Break/Continue/divergence possibilities and runtime errors. Every normal List construction has one exact homogeneous element type (E3002 otherwise). `List<T>` is a single builtin type constructor, with well-formed incorrect arity E3017, without generic binder state.
+
+Before emitting executable typed HIR, validate **every** source-derived aggregate type introduction (locals, annotations, signatures, aggregate fields, inferred expressions, calls, assignments, branch joins, projections, indexes) at combined depth <=64. Written depth 65 belongs to parser E1105, inferred depth 65 containing List to checker E3016, and pure tuple-only inferred depth 65 remains D002 E3014. Share-aware iterative/memoized depth walks prevent repeated DAG expansion. Index typing first checks normal List base (E3018), then normal `Int` index (E3019), and computes the element type, or propagates D001 non-normal effects. Checker state from one function or failed expected-type context must never reach another.
+
+### Runtime transitions and resource accounting
+
+```text
+List literal -> validate typed-HIR shape and limits -> charge existing fuel
+-> evaluate each element once left-to-right, charging before work
+-> propagate non-normal Flow/error without publishing partial aggregate
+-> on all normal values, validate types and publish immutable shared List
+List index -> evaluate base once -> propagate effects -> evaluate index once
+-> propagate effects -> charge/check 0 <= index < len -> element value or E4007
+List == / != -> verify matching static types -> iterative mixed List/Tuple
+  pair worklist with memoization + fuel for each visited pair/edge
+-> compare first-visit descendants even for identical pointers (NaN)
+-> return equality result / its exact negation
+```
+
+Runtime value validation (including nested List/Tuple, parameter/return boundaries, and source spans) must reject malformed internal HIR/value shapes as E9004 without replacing ordinary valid-source E4007. No deep copying, recursive formatting, partial-publication escape or source-level cycles are permitted. The 1,000,000-step E4006 budget charges construction, indexing, equality, type/value validation and existing D001 loop/call work before expensive expansion; fuel is not a hard global memory cap. Tuple arity 64, List literal maximum 256, structural type depth 64 and call depth 128 remain enforced, with call/frame depth restored after normal, error and effect paths. D001 loop/function barriers and D002 tuple-only behavior are unchanged. Implementation proof obligations are listed in `HYDRA_0_2_D003_ACCEPTANCE.md`; they are **not** executed in this acceptance campaign.
