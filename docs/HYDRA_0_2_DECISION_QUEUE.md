@@ -1,43 +1,25 @@
-# Hydra 0.2 Decision Queue
+# Hydra 0.2 Decision Queue — Current State
 
-Hydra 0.1 is preserved; Hydra 0.2 is **IN PROGRESS**. This is governance, not implementation authorization. Feature families require an accepted decision, normative specification, source behavior/regression obligations, and independent validation before implementation can be declared complete.
+Hydra 0.1 remains frozen. Hydra 0.2 remains **IN PROGRESS**. Every new family requires human acceptance of its semantic decision, normative specifications, tests and independent validation before implementation or freeze. A proposed design is not authority to implement it.
 
-## Frozen first family: D001 loop control
+## Frozen families
 
-`break` / `continue` is **ACCEPTED, IMPLEMENTED, AUDITED, FROZEN** at `764b901ec8a0f0febfb3624c392d27f14b631ff4`. See `docs/decisions/001-loop-control.md` and `HYDRA_0_2_D001_FREEZE.md`. Its lexical targeting, D001 checker path outcomes, HIR and runtime effects, and E3010/E3011 checks are no longer open candidate questions. D001 is preserved without reopening its contract.
+- **D001 — loop control:** `break` / `continue` **ACCEPTED, IMPLEMENTED, AUDITED, FROZEN**, checkpoint `764b901ec8a0f0febfb3624c392d27f14b631ff4`. Evidence: `docs/decisions/001-loop-control.md` and `HYDRA_0_2_D001_FREEZE.md`.
+- **D002 — structural tuples:** **ACCEPTED, IMPLEMENTED, AUDITED, FROZEN**, checkpoint `f91d9829c6964fed8e63b97b0a8a05f7a255e58c`, five successful exact-SHA CI jobs in run `37866987551`. The human-approved Option A depth amendment is implemented. Evidence: `docs/decisions/002-tuples.md`, `HYDRA_0_2_D002_IMPLEMENTATION.md` and `HYDRA_0_2_D002_AUDIT_AND_FREEZE.md`. The past statement “D002 IMPLEMENTATION NOT STARTED” was correct when the acceptance gate was written but is obsolete as a current status claim. Historical acceptance documents were preserved.
 
-## Selected second family: D002 Tuple — ACCEPTED / NORMATIVE CONTRACT LOCKED
+## D003 — candidate selected for human review only
 
-Exactly **one** second-family design is human-approved on 2026-10-08: immutable ordered **structural Tuple** with parenthesized comma literal/type forms, read-only constant positional projection, matching-type equality and bounded shared storage. The **ACCEPTED** and locked contract is `docs/decisions/002-tuples.md`; the historical selection analysis is `HYDRA_0_2_D002_DESIGN_GATE.md`; the approval ledger is `HYDRA_0_2_D002_ACCEPTANCE.md`. The normative grammar, type, execution, lexical, diagnostics and state-machine documents now describe the accepted **future** tuple behavior. **D002 IMPLEMENTATION NOT STARTED.** Production Rust, tests, corpus, fuzzing, releases, tags and D003 remain unauthorized by this acceptance. The next action is a separately authorized D002 implementation campaign.
+**Immutable homogeneous List** is the architectural recommendation in `HYDRA_0_2_D003_DESIGN_GATE.md`. Draft contract: `docs/decisions/003-list.md`, status **PROPOSED — HUMAN APPROVAL REQUIRED**. **D003 NOT ACCEPTED; D003 IMPLEMENTATION NOT STARTED.** Empty-list contextual typing, bounds/index diagnostics and precise allocation/aggregate depth limits require a human decision. Only the architecture/design documentation campaign is authorized; no normative `spec/` change, diagnostic allocation, Rust implementation or release follows automatically.
 
-## Unselected and deferred families
+## Alternatives independently evaluated and deferred
 
-### Type-constructor foundation
+| Candidate | Deferred reason / remaining decision |
+| --- | --- |
+| Standalone type constructors | No executable source-visible consumer without another family; only builtin `List<T>` spelling is proposed within D003. |
+| Set | Brace/block grammar collision, equality and duplicate-removal costs, membership semantics and deterministic observability. Hashing is optional, not mandatory. |
+| Fixed Array | Length-bearing identity, literal shape and element ownership policy; general const generics are not automatically needed. |
+| Modules/imports | Units, file maps, namespaces, cycles, visibility, initialization and cross-file symbol identities. Packages/build systems are independent. |
+| Algebraic data types | Named type and constructor identity, variants, fields, evaluation/equality; patterns and user generics are optional future decisions. |
+| Generic functions | Binders, inference/instantiation, substitution, type/HIR identity and codegen strategy without an accepted polymorphic use case. |
 
-Type-argument grammar, constructor arity/identity, lookup and builtin/user-defined boundaries need a concrete accepted consumer. This candidate was assessed independently and deferred: choosing `List<T>` later may motivate its own type-application decision without requiring all user generics in advance.
-
-### `List<T>` — H15 deferred
-
-Open: homogeneous elements, type application, literal and indexing syntax, mutability/ownership, size/growth, bounds diagnostics, equality and builtin/API surface. No List contract is accepted.
-
-### `Set<T>` — H15 deferred
-
-Open: type application, syntax distinct from blocks, duplicate policy and equality, deterministic membership/iteration, mutability and storage. A hashing protocol is optional if a deliberately linear policy is accepted later.
-
-### Fixed `Array<T, N>` — H15 deferred (optional)
-
-First decide whether fixed arrays exist. If selected later, define length-bearing type identity, compile-time integer length, construction, mutability, indexing and bounds. General const generics are not intrinsically required.
-
-### Modules/imports
-
-Open: compilation unit, source/file mapping, namespace and visibility, import cycles, symbol identities across units and module initialization policy. Packages and incremental compilation are separate future work.
-
-### Algebraic data types
-
-Open: nominal `struct`/`enum` identities, declaration and constructor rules, fields/variants, access, equality and runtime representation. Pattern matching, exhaustiveness, generics and modules may be convenient but are not automatically hard dependencies.
-
-### Generics
-
-Open: parameter binders, substitution, inference/instantiation, identity and runtime/backend strategy. Generic functions can be considered independently from generic ADTs; a future builtin `List<T>` does not imply user generics are accepted.
-
-Native code generation, WebAssembly, package management, LSP, REPL and web tooling remain outside this semantic decision queue until their prerequisites are documented. **D003 is not selected or authorized.**
+List mutation, iteration, comprehensions, Set, Array and unrestricted type constructors are outside the proposed D003 boundary. Other backends, packages, tooling, releases and tags remain deferred.
