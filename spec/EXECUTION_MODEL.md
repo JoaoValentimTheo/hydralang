@@ -50,9 +50,9 @@ The `print` and `println` source builtins remain limited to their existing primi
 
 Malformed typed HIR or internal values (non-tuple runtime projection, invalid index, type/value inconsistency or corrupt aggregate) must fail with source-spanned **E9004**, without unchecked indexing, unchecked recursion, panic or memory blowup. The implementation retains source arity/depth guards and bounded adversarial traversal. The D001 flow states, existing scalar semantics, iteration charging and error unwinding remain unchanged. Tuple execution was implemented, adversarially audited and frozen at `f91d9829c6964fed8e63b97b0a8a05f7a255e58c`.
 
-## Hydra 0.2 D003 List execution — ACCEPTED, NOT IMPLEMENTED
+## Hydra 0.2 D003 List execution — IMPLEMENTED
 
-This describes the future D003 List interpreter contract, **not executable behavior today**. The Hydra 0.1, D001 and tuple-only D002 execution models remain frozen, including distinct `Flow::Value`, `Return`, `Break`, `Continue`, divergence and diagnostic outcomes.
+This describes the accepted and implemented D003 List interpreter contract. The Hydra 0.1, D001 and tuple-only D002 execution models remain frozen, including distinct `Flow::Value`, `Return`, `Break`, `Continue`, divergence and diagnostic outcomes.
 
 List literal execution first checks its valid typed-HIR shape, then evaluates source elements **strictly left to right, exactly once**. It charges the existing fuel for construction and each element before expensive work. A `Return`, `Break`, `Continue` or diagnostic interrupts evaluation and propagates unchanged without evaluating later elements or making any partially accumulated List accessible. After all elements finish normally, the runtime publishes a single immutable value containing the completed element snapshots. All normal values have the exact required static `T` and each dynamic component must pass type/value invariant validation; `Never` is never stored. A source-level empty `List<Never>` contains no elements.
 

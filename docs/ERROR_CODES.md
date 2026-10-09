@@ -31,18 +31,18 @@ Hydra diagnostics use stable phase-oriented families. Codes are not reused for u
 | E3012 | Type checking | D002 constant positional projection on a normally valued non-tuple |
 | E3013 | Type checking | D002 constant positional projection index outside the tuple's static arity |
 | E3014 | Type checking | D002 inferred structural tuple-type nesting exceeds 64 layers (2026-10-08 Option A) |
-| E3015 | Type checking (D003 reserved, not emitted) | Empty List literal without a permitted exact expected `List<T>` |
-| E3016 | Type checking (D003 reserved, not emitted) | Inferred aggregate type containing List exceeds combined List/Tuple depth 64 |
-| E3017 | Type checking (D003 reserved, not emitted) | Syntactically valid builtin List type with other than one type argument |
-| E3018 | Type checking (D003 reserved, not emitted) | Normally valued non-List base of index expression |
-| E3019 | Type checking (D003 reserved, not emitted) | Normally valued index expression with non-Int type |
+| E3015 | Type checking (D003 implemented) | Empty List literal without a permitted exact expected `List<T>` |
+| E3016 | Type checking (D003 implemented) | Inferred aggregate type containing List exceeds combined List/Tuple depth 64 |
+| E3017 | Type checking (D003 implemented) | Syntactically valid builtin List type with other than one type argument |
+| E3018 | Type checking (D003 implemented) | Normally valued non-List base of index expression |
+| E3019 | Type checking (D003 implemented) | Normally valued index expression with non-Int type |
 | E4001 | Runtime | Missing `main` function |
 | E4002 | Runtime | `main` declares parameters |
 | E4003 | Runtime | Maximum call depth exceeded |
 | E4004 | Runtime | Checked integer overflow |
 | E4005 | Runtime | Integer division or remainder by zero |
 | E4006 | Runtime | Deterministic execution-step budget exhausted |
-| E4007 | Runtime (D003 reserved, not emitted) | List index outside `0 <= index < length`, including negative or empty-List index |
+| E4007 | Runtime (D003 implemented) | List index outside `0 <= index < length`, including negative or empty-List index |
 | E9001 | Internal | Function ID space exhausted during resolution |
 | E9002 | Internal | Resolver scope invariant violated |
 | E9003 | Internal | Type-checker/HIR lowering invariant violated |
@@ -63,8 +63,8 @@ Diagnostics originating from source syntax or HIR evaluation carry a primary sou
 
 Two deliberate edge policies are worth making explicit: a semicolon reports E1001 because it is not a 0.1 token, and direct `-9223372036854775808` reports E1102 because the positive literal token is parsed before unary negation and does not fit in `Int`.
 
-## D003 diagnostic reservation — accepted 2026-10-09, NOT IMPLEMENTED
+## D003 diagnostic ownership — accepted and implemented 2026-10-09
 
-The full pre-D003 registry above had **no collision** for E3015–E3019 or E4007. Those six codes are reserved **normatively for future D003 implementation**; their presence in this registry does **not** imply any current emitter exists. E3015 applies only when `[]` has no expected `List<T>` from the five accepted direct contexts; E3016 applies to inferred combined depth >64 **containing a List**, with constructing expression span and actual/maximum depth; E3017 checks syntactically well-formed `List` type-argument arity; E3018 and E3019 check only normally completing index operands. Non-normal operands preserve D001 effects. E4007 is an **ordinary source-reachable** bounds failure at the index operation, never internal E9004.
+The full pre-D003 registry above had **no collision** for E3015–E3019 or E4007. These six codes now have active D003 compiler/runtime emitters. E3015 applies only when `[]` has no expected `List<T>` from the five accepted direct contexts; E3016 applies to inferred combined depth >64 **containing a List**, with constructing expression span and actual/maximum depth; E3017 checks syntactically well-formed `List` type-argument arity; E3018 and E3019 check only normally completing index operands. Non-normal operands preserve D001 effects. E4007 is an **ordinary source-reachable** bounds failure at the index operation, never internal E9004.
 
 Existing codes retain phase ownership: **E1101** malformed brackets, invalid List/type punctuation, excess 256 literal elements; **E1104** assignment through an index; **E1105** written combined aggregate depth 65 and recursive syntax nesting 128; **E1106** expression-tree depth 256; **E3001** unknown type; **E3002** heterogeneous List elements/incompatible structural types; **E3003** disallowed List operators; **E3004** incompatible branch result types; **E3007** whole-List print/println; **E3014** tuple-only inferred depth 65; **E4006** existing fuel exhaustion; **E9004** malformed internal typed HIR or value/type invariants. **E3009** remains function/builtin *value-call* arity only, not `List<T>` arity. Syntactically complete wrong List arity reaches the checker once; malformed type syntax is diagnosed by the parser once. No duplicated cross-phase diagnostics. Every public diagnostic has an exact source span that respects UTF-8 scalar boundaries. See `HYDRA_0_2_D003_ACCEPTANCE.md` and `spec/TYPE_SYSTEM.md`.

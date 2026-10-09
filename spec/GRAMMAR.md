@@ -85,9 +85,9 @@ At most **64 fields** may occur in a tuple expression or type; arity 65 reports 
 
 This is a **compatible extension** against frozen D001: no new keywords, no changed `()`/grouping semantics, no changed float literals or previously accepted calls. Destructuring, patterns, generic type application, lists, sets, arrays, named fields and other family syntax are not accepted. See `docs/decisions/002-tuples.md`; the implementation is documented in `HYDRA_0_2_D002_IMPLEMENTATION.md`.
 
-## Hydra 0.2 D003 accepted List grammar — NOT IMPLEMENTED
+## Hydra 0.2 D003 implemented List grammar
 
-The previous paragraph's exclusions describe **the D002 implementation scope**. D003 separately accepts one future additive List family; the following grammar is **locked as specification only**. The unchanged compiler still rejects these List constructs. D001 and D002 syntax remain implemented and frozen.
+The previous paragraph's exclusions describe **the D002 implementation scope**. D003 separately accepts and implements the additive List family below. This grammar is the locked normative contract for the implemented compiler. D001 and D002 syntax remain implemented and frozen.
 
 ```text
 list-literal      := "[" (expression ("," expression)* ","?)? "]"

@@ -604,6 +604,13 @@ impl<'a> Interpreter<'a> {
             Flow::Value(value) => value,
             flow => return Ok(flow),
         };
+        if index.ty == Type::Never {
+            return Err(self.runtime_error(
+                "E9004",
+                "HIR Never index unexpectedly produced a normal value",
+                index.span,
+            ));
+        }
         let Value::Int(position) = index_value else {
             return Err(self.runtime_error("E9004", "HIR index value is not Int", index.span));
         };
@@ -1086,6 +1093,42 @@ mod tests {
             .expect_err("empty List value must not conceal a type deeper than 64");
         assert_eq!(error.code, "E9004");
         assert_eq!(error.primary, span);
+    }
+
+    #[test]
+    fn malformed_never_index_cannot_produce_value_or_bounds_error() {
+        use std::collections::BTreeMap;
+
+        let span = Span::new(SourceId::new(21), 25, 34);
+        let program = HirProgram { functions: vec![] };
+        let mut vm = Interpreter::new(&program);
+        let mut frame = BTreeMap::new();
+        frame.insert(SymbolId(1), list(vec![Value::Int(7)]));
+
+        for position in [0, 2] {
+            let expr = HirExpr {
+                kind: HirExprKind::Index {
+                    base: Box::new(HirExpr {
+                        kind: HirExprKind::Local(SymbolId(1)),
+                        ty: Type::list(Type::Int),
+                        span,
+                    }),
+                    index: Box::new(HirExpr {
+                        kind: HirExprKind::Literal(HirLiteral::Int(position)),
+                        ty: Type::Never,
+                        span,
+                    }),
+                },
+                ty: Type::Never,
+                span,
+            };
+            let error = match vm.eval_expr(&expr, &mut frame) {
+                Err(error) => error,
+                Ok(_) => panic!("a Never-typed index cannot finish with a normal Int"),
+            };
+            assert_eq!(error.code, "E9004");
+            assert_eq!(error.primary, span);
+        }
     }
 
     #[test]

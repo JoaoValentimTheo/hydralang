@@ -141,9 +141,9 @@ Resolver, checker, and interpreter contain recursive walkers. For source-derived
 
 The relevant regressions live in `hydra-parser`, `hydra-resolve`, `hydra-check`, and `hydra-runtime` unit tests and are exercised by the workspace test gate.
 
-## D003 future List transitions — ACCEPTED, NOT IMPLEMENTED
+## D003 List transitions — ACCEPTED AND IMPLEMENTED
 
-The following transitions are **normatively locked for future production authorization**; none is part of today's parser/resolver/checker/typed-HIR/runtime implementation. This document remains the **single** state-machine contract. All frozen Hydra 0.1, D001 and tuple-only D002 transitions above continue to apply.
+The following transitions are **normatively locked and implemented** in the parser, resolver, checker, typed HIR and runtime. This document remains the **single** state-machine contract. All frozen Hydra 0.1, D001 and tuple-only D002 transitions above continue to apply.
 
 ### Parser states and restoration
 
@@ -204,4 +204,4 @@ List == / != -> verify matching static types -> iterative mixed List/Tuple
 -> return equality result / its exact negation
 ```
 
-Runtime value validation (including nested List/Tuple, parameter/return boundaries, and source spans) must reject malformed internal HIR/value shapes as E9004 without replacing ordinary valid-source E4007. No deep copying, recursive formatting, partial-publication escape or source-level cycles are permitted. The 1,000,000-step E4006 budget charges construction, indexing, equality, type/value validation and existing D001 loop/call work before expensive expansion; fuel is not a hard global memory cap. Tuple arity 64, List literal maximum 256, structural type depth 64 and call depth 128 remain enforced, with call/frame depth restored after normal, error and effect paths. D001 loop/function barriers and D002 tuple-only behavior are unchanged. Implementation proof obligations are listed in `HYDRA_0_2_D003_ACCEPTANCE.md`; they are **not** executed in this acceptance campaign.
+Runtime value validation (including nested List/Tuple, parameter/return boundaries, and source spans) must reject malformed internal HIR/value shapes as E9004 without replacing ordinary valid-source E4007. No deep copying, recursive formatting, partial-publication escape or source-level cycles are permitted. The 1,000,000-step E4006 budget charges construction, indexing, equality, type/value validation and existing D001 loop/call work before expensive expansion; fuel is not a hard global memory cap. Tuple arity 64, List literal maximum 256, structural type depth 64 and call depth 128 remain enforced, with call/frame depth restored after normal, error and effect paths. D001 loop/function barriers and D002 tuple-only behavior are unchanged. Implementation and adversarial proof obligations are recorded in `HYDRA_0_2_D003_IMPLEMENTATION.md` and `HYDRA_0_2_D003_AUDIT_AND_FREEZE.md`.

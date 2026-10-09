@@ -82,9 +82,9 @@ Two tuple expressions may use `==` and `!=` only for **identical static tuple ty
 
 Parser checks cap tuple arity at **64** (E1101), tuple-type nesting at **64 tuple layers per path** (E1105), and preserve existing parser syntax/expression depth guards (E1105/E1106). Type traversal of adversarial internal structures must avoid unbounded host recursion. Inferred tuple depth above 64 is checker E3014; the guards are implemented.
 
-## Hydra 0.2 D003 — accepted immutable homogeneous List types (NOT IMPLEMENTED)
+## Hydra 0.2 D003 — implemented immutable homogeneous List types
 
-This is a **locked contract for a future implementation**, accepted 2026-10-09. The existing checker has no List type or List inference. The frozen D001 effects and D002 tuple-only rules above retain their existing meanings.
+This **locked contract**, accepted 2026-10-09, is implemented in the checker, including List types and constrained List inference. The frozen D001 effects and D002 tuple-only rules above retain their existing meanings.
 
 `List<T>` is a builtin **type constructor**, recognized only in type positions, with precisely one concrete type argument. Its name remains an ordinary identifier in value positions; no callable `List` constructor, user generics, generic functions, variance, subtyping, implicit conversion, numeric promotion or generalized `Name<T>` application is introduced. `List<Int>`, `List<Float>`, `List<(Int, String)>`, and `List<List<Int>>` have invariant structural type identity. Two normally completed List values are compatible only with exactly matching element types. Unknown type names are E3001; a syntactically well-formed `List<>` or `List<Int, Bool>` reaches checker E3017, not function-call arity E3009. Malformed type delimiters or argument syntax remain parser E1101.
 

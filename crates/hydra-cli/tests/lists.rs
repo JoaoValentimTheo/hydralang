@@ -105,10 +105,21 @@ fn main() {
         "E3015",
         Phase::Type,
     );
+    reject(
+        "fn pair(a: List<Int>, b: Int) {}\nfn main() { pair([], []) }",
+        "E3015",
+        Phase::Type,
+    );
+    assert_eq!(
+        run("fn main() { let empty: List<Never> = []\n println(empty == empty) }"),
+        "true\n"
+    );
 }
 
 #[test]
 fn d003_index_diagnostics_and_type_errors() {
+    // A new bracket primary on the next line cannot index the preceding binding.
+    reject("fn main() { let xs = [1]\n [0] }", "E3002", Phase::Type);
     reject("fn main() { let xs = [] }", "E3015", Phase::Type);
     reject("fn main() { let xs = [1, true] }", "E3002", Phase::Type);
     reject("fn main() { let xs: List<> = [] }", "E3017", Phase::Type);
