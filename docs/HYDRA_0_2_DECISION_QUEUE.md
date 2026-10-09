@@ -1,6 +1,6 @@
 # Hydra 0.2 Decision Queue — Current State
 
-Hydra 0.1 remains frozen. Hydra 0.2 remains **IN PROGRESS**. Every new family requires human acceptance of its semantic decision, normative specifications, tests and independent validation before implementation or freeze. A proposed design is not authority to implement it.
+Hydra 0.1 remains frozen. Hydra 0.2 has **COMPLETE SEMANTIC SCOPE** and its **TECHNICAL CLOSURE IS HUMAN-AUTHORIZED**, conditional on successful five-job exact-closure-SHA CI after documentation publication (`HYDRA_0_2_TECHNICAL_CLOSURE.md`). Once that gate passes, Hydra 0.2 is **TECHNICALLY CLOSED — UNRELEASED**. Every future family requires separate human acceptance of its semantic decision, normative specifications, tests and validation before implementation or freeze. A proposed design is not authority to implement it.
 
 ## Frozen families
 
@@ -24,6 +24,6 @@ Hydra 0.1 remains frozen. Hydra 0.2 remains **IN PROGRESS**. Every new family re
 
 List mutation, iteration, comprehensions, Set, Array and unrestricted type constructors are outside the accepted D003 boundary. Other backends, packages, tooling, releases and tags remain deferred.
 
-## Technical milestone scope recommendation — awaiting human decision
+## Technical milestone closure — human decision granted, final CI gate pending
 
-The finite assessment in `HYDRA_0_2_MILESTONE_SCOPE_AND_READINESS.md` finds D001+D002+D003 sufficient for the **technical scope** of Hydra 0.2; no reproduced contract blocker or mandatory D004 dependency was found. **Do not initiate D004 for feature-count reasons.** Hydra 0.2 remains **IN PROGRESS** until a separately authorized human milestone-closure decision. The current `0.1.0-dev` identifier, release and tags remain unchanged.
+The finite assessment in `HYDRA_0_2_MILESTONE_SCOPE_AND_READINESS.md` found D001+D002+D003 sufficient for the **technical scope** of Hydra 0.2; no reproduced contract blocker or mandatory D004 dependency was found. On 2026-10-09 the owner **AUTHORIZED CLOSURE OF THIS EXACT SCOPE**, documented in `HYDRA_0_2_TECHNICAL_CLOSURE.md`. The final published SHA must receive five passing GitHub Actions jobs, and the worktree and local/remote refs must be reconciled before closure takes effect. **D004 is DEFERRED / NOT AUTHORIZED.** The `0.1.0-dev` identifier, version tags, releases and deployment remain unchanged and unauthorized.
