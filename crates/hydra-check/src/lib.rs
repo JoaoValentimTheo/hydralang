@@ -120,9 +120,12 @@ fn stmt_outcome(stmt: &HirStmt) -> Outcome {
 fn expr_outcome(expr: &HirExpr) -> Outcome {
     match &expr.kind {
         HirExprKind::Literal(_) | HirExprKind::Local(_) => Outcome::NORMAL,
-        HirExprKind::Tuple(fields) => fields.iter().fold(Outcome::NORMAL, |outcome, field| {
-            outcome.then(expr_outcome(field))
-        }),
+        HirExprKind::Tuple(fields) | HirExprKind::List(fields) => {
+            fields.iter().fold(Outcome::NORMAL, |outcome, field| {
+                outcome.then(expr_outcome(field))
+            })
+        }
+        HirExprKind::Index { base, index } => expr_outcome(base).then(expr_outcome(index)),
         HirExprKind::Projection { base, .. } => expr_outcome(base),
         HirExprKind::Unary { operand, .. } => expr_outcome(operand),
         HirExprKind::Assign { value, .. } => expr_outcome(value),
@@ -247,7 +250,13 @@ impl<'a> Checker<'a> {
                 }
             }
 
-            let body = self.check_block(&function.body);
+            let body = self.check_block_expected(
+                &function.body,
+                function
+                    .return_type
+                    .as_ref()
+                    .map(|_| &signature.return_type),
+            );
             if !compatible(&body.ty, &signature.return_type) {
                 self.diagnostics.push(Diagnostic::error(
                     "E3002",
@@ -315,6 +324,24 @@ impl<'a> Checker<'a> {
                     .map(|field| self.type_from_expr(field))
                     .collect(),
             ),
+            TypeExprKind::ListApplication(args) => {
+                if args.len() != 1 {
+                    self.type_error(
+                        "E3017",
+                        format!(
+                            "List expects exactly one type argument, found {}",
+                            args.len()
+                        ),
+                        ty.span,
+                    );
+                    for arg in args {
+                        self.type_from_expr(arg);
+                    }
+                    Type::Unit
+                } else {
+                    Type::list(self.type_from_expr(&args[0]))
+                }
+            }
             TypeExprKind::Name(name) => {
                 if let Some(ty) = Type::from_name(name) {
                     ty
@@ -332,6 +359,10 @@ impl<'a> Checker<'a> {
     }
 
     fn check_block(&mut self, block: &Block) -> HirBlock {
+        self.check_block_expected(block, None)
+    }
+
+    fn check_block_expected(&mut self, block: &Block, expected_tail: Option<&Type>) -> HirBlock {
         let mut statements = Vec::new();
         let mut outcome = Outcome::NORMAL;
         for stmt in &block.statements {
@@ -342,7 +373,7 @@ impl<'a> Checker<'a> {
         let tail = block
             .tail
             .as_ref()
-            .map(|expr| Box::new(self.check_expr(expr)));
+            .map(|expr| Box::new(self.check_expr_expected(expr, expected_tail)));
         let tail_outcome = tail
             .as_ref()
             .map_or(Outcome::NORMAL, |expr| expr_outcome(expr));
@@ -369,8 +400,8 @@ impl<'a> Checker<'a> {
                 span,
                 ..
             } => {
-                let init = self.check_expr(init);
                 let declared = ty.as_ref().map(|ty| self.type_from_expr(ty));
+                let init = self.check_expr_expected(init, declared.as_ref());
                 if let Some(expected) = &declared {
                     self.require_type(&init.ty, expected, init.span, "binding initializer");
                 }
@@ -426,9 +457,11 @@ impl<'a> Checker<'a> {
                 HirStmt::Continue { span: *span }
             }
             Stmt::Return { value, span } => {
-                let value = value.as_ref().map(|expr| self.check_expr(expr));
-                let actual = value.as_ref().map_or(Type::Unit, |expr| expr.ty.clone());
                 let expected = self.current_return.clone();
+                let value = value
+                    .as_ref()
+                    .map(|expr| self.check_expr_expected(expr, Some(&expected)));
+                let actual = value.as_ref().map_or(Type::Unit, |expr| expr.ty.clone());
                 self.require_type(&actual, &expected, *span, "return value");
                 HirStmt::Return { value, span: *span }
             }
@@ -436,30 +469,128 @@ impl<'a> Checker<'a> {
     }
 
     fn check_expr(&mut self, expr: &Expr) -> HirExpr {
+        self.check_expr_expected(expr, None)
+    }
+
+    // Expected types enter only at the five approved binding/call/return/assignment
+    // boundaries, and travel exclusively through direct Tuple/List constructors.
+    fn check_expr_expected(&mut self, expr: &Expr, expected: Option<&Type>) -> HirExpr {
         match &expr.kind {
             ExprKind::Literal(literal) => self.check_literal(literal, expr.span),
             ExprKind::Name(_) => self.check_name(expr),
             ExprKind::Tuple(elements) => {
+                let expected_fields = match expected {
+                    Some(Type::Tuple(fields)) if fields.len() == elements.len() => Some(fields),
+                    _ => None,
+                };
                 let fields: Vec<_> = elements
                     .iter()
-                    .map(|element| self.check_expr(element))
+                    .enumerate()
+                    .map(|(index, element)| {
+                        self.check_expr_expected(
+                            element,
+                            expected_fields.map(|types| &types[index]),
+                        )
+                    })
                     .collect();
                 let ty = if fields.iter().any(|field| field.ty == Type::Never) {
                     Type::Never
                 } else {
                     Type::tuple(fields.iter().map(|field| field.ty.clone()).collect())
                 };
-                if let depth @ (65..) = ty.tuple_depth() {
-                    self.type_error(
-                        "E3014",
-                        format!(
-                            "maximum inferred tuple-type nesting depth of {MAX_TUPLE_TYPE_NESTING} exceeded: inferred depth {depth}"
-                        ),
-                        expr.span,
-                    );
-                }
+                self.check_aggregate_depth(&ty, expr.span);
                 HirExpr {
                     kind: HirExprKind::Tuple(fields),
+                    ty,
+                    span: expr.span,
+                }
+            }
+            ExprKind::List(elements) => {
+                let expected_element = match expected {
+                    Some(Type::List(element)) => Some(element.as_ref()),
+                    _ => None,
+                };
+                let fields: Vec<_> = elements
+                    .iter()
+                    .map(|element| self.check_expr_expected(element, expected_element))
+                    .collect();
+                let element_ty = if elements.is_empty() {
+                    if let Some(element) = expected_element {
+                        element.clone()
+                    } else {
+                        self.type_error(
+                            "E3015",
+                            "empty List needs an expected List<T> type",
+                            expr.span,
+                        );
+                        Type::Unit
+                    }
+                } else {
+                    // `Never` has no value to place in the completed collection.
+                    let inferred = fields
+                        .iter()
+                        .find(|field| field.ty != Type::Never)
+                        .map(|field| field.ty.clone());
+                    let element_ty = expected_element
+                        .cloned()
+                        .or(inferred)
+                        .unwrap_or(Type::Never);
+                    for field in &fields {
+                        if field.ty != Type::Never && field.ty != element_ty {
+                            self.type_error(
+                                "E3002",
+                                format!("List element: expected {element_ty}, found {}", field.ty),
+                                field.span,
+                            );
+                        }
+                    }
+                    element_ty
+                };
+                let ty = if fields.iter().any(|field| field.ty == Type::Never) {
+                    Type::Never
+                } else {
+                    Type::list(element_ty)
+                };
+                self.check_aggregate_depth(&ty, expr.span);
+                HirExpr {
+                    kind: HirExprKind::List(fields),
+                    ty,
+                    span: expr.span,
+                }
+            }
+            ExprKind::Index { base, index } => {
+                let base = self.check_expr(base);
+                let index = self.check_expr(index);
+                let ty = match &base.ty {
+                    Type::Never => Type::Never,
+                    Type::List(element) => {
+                        if index.ty != Type::Never && index.ty != Type::Int {
+                            self.type_error(
+                                "E3019",
+                                format!("List index must be Int, found {}", index.ty),
+                                index.span,
+                            );
+                        }
+                        if index.ty == Type::Never {
+                            Type::Never
+                        } else {
+                            element.as_ref().clone()
+                        }
+                    }
+                    other => {
+                        self.type_error(
+                            "E3018",
+                            format!("cannot index non-List type {other}"),
+                            base.span,
+                        );
+                        Type::Unit
+                    }
+                };
+                HirExpr {
+                    kind: HirExprKind::Index {
+                        base: Box::new(base),
+                        index: Box::new(index),
+                    },
                     ty,
                     span: expr.span,
                 }
@@ -549,7 +680,6 @@ impl<'a> Checker<'a> {
             ExprKind::Assign {
                 name_span, value, ..
             } => {
-                let value = self.check_expr(value);
                 let symbol = match self.resolution.resolved(*name_span) {
                     Some(ResolvedName::Local(symbol)) => *symbol,
                     _ => {
@@ -561,6 +691,7 @@ impl<'a> Checker<'a> {
                     self.internal("missing local type for assignment", *name_span);
                     Type::Unit
                 });
+                let value = self.check_expr_expected(value, Some(&expected));
                 self.require_type(&value.ty, &expected, value.span, "assignment value");
                 let ty = if value.ty == Type::Never {
                     Type::Never
@@ -634,6 +765,14 @@ impl<'a> Checker<'a> {
         }
     }
 
+    fn check_aggregate_depth(&mut self, ty: &Type, span: Span) {
+        let depth = ty.aggregate_depth();
+        if depth > MAX_TUPLE_TYPE_NESTING {
+            let code = if ty.contains_list() { "E3016" } else { "E3014" };
+            self.type_error(code, format!("maximum inferred aggregate type depth of {MAX_TUPLE_TYPE_NESTING} exceeded: inferred depth {depth}"), span);
+        }
+    }
+
     fn check_literal(&self, literal: &Literal, span: Span) -> HirExpr {
         let (literal, ty) = match literal {
             Literal::Int(value) => (HirLiteral::Int(*value), Type::Int),
@@ -687,7 +826,19 @@ impl<'a> Checker<'a> {
 
     fn check_call(&mut self, span: Span, callee: &Expr, args: &[Expr]) -> HirExpr {
         let resolved = self.resolution.resolved(callee.span).cloned();
-        let checked_args: Vec<_> = args.iter().map(|arg| self.check_expr(arg)).collect();
+        let expected_params = match &resolved {
+            Some(ResolvedName::Function(id)) => {
+                self.signatures.get(id).map(|sig| sig.params.clone())
+            }
+            _ => None,
+        };
+        let checked_args: Vec<_> = args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| {
+                self.check_expr_expected(arg, expected_params.as_ref().and_then(|p| p.get(i)))
+            })
+            .collect();
         match resolved {
             Some(ResolvedName::Function(id)) => {
                 let signature = self.signatures.get(&id).cloned().unwrap_or_else(|| {

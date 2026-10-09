@@ -1,0 +1,13 @@
+fn main() {
+    let mut xs = [1, 2]
+    let saved = xs
+    xs = [3, 4]
+    println(saved[0])
+    println(xs[0])
+    let nan = 0.0 / 0.0
+    let leaf = [nan]
+    let pair = (leaf, leaf)
+    let list = [pair, pair]
+    println(list == list)
+    println(list != list)
+}

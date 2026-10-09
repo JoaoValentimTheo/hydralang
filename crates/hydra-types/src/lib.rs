@@ -15,6 +15,15 @@ pub enum Type {
     // The compiler can infer types from previously bound tuples. Sharing is
     // essential: repeated (t, t) bindings must not duplicate t's type tree.
     Tuple(Rc<[Type]>),
+    List(Rc<Type>),
+}
+
+fn aggregate_key(ty: &Type) -> Option<(u8, usize)> {
+    match ty {
+        Type::Tuple(fields) => Some((0, Rc::as_ptr(fields) as *const () as usize)),
+        Type::List(element) => Some((1, Rc::as_ptr(element) as usize)),
+        _ => None,
+    }
 }
 
 // Tuple type identity is structural, including field order and arity. Avoid
@@ -31,14 +40,19 @@ impl PartialEq for Type {
                     if Rc::ptr_eq(a, b) {
                         continue;
                     }
-                    let pair = (
-                        Rc::as_ptr(a) as *const () as usize,
-                        Rc::as_ptr(b) as *const () as usize,
-                    );
+                    let pair = (aggregate_key(left), aggregate_key(right));
                     if !visited.insert(pair) {
                         continue;
                     }
                     pending.extend(a.iter().zip(b.iter()));
+                }
+                (Self::List(a), Self::List(b)) => {
+                    if Rc::ptr_eq(a, b) {
+                        continue;
+                    }
+                    if visited.insert((aggregate_key(left), aggregate_key(right))) {
+                        pending.push((a, b));
+                    }
                 }
                 (Self::Int, Self::Int)
                 | (Self::Float, Self::Float)
@@ -65,22 +79,35 @@ impl Hash for Type {
         let mut scheduled = HashSet::new();
         let mut pending = vec![(self, false)];
         while let Some((ty, finish)) = pending.pop() {
-            if let Self::Tuple(fields) = ty {
-                let key = Rc::as_ptr(fields) as *const () as usize;
+            if let Some(key) = aggregate_key(ty) {
                 if fingerprints.contains_key(&key) {
                     continue;
                 }
                 if finish {
                     let mut hasher = DefaultHasher::new();
                     std::mem::discriminant(ty).hash(&mut hasher);
-                    fields.len().hash(&mut hasher);
-                    for field in fields.iter() {
-                        field_fingerprint(field, &fingerprints).hash(&mut hasher);
+                    match ty {
+                        Self::Tuple(fields) => {
+                            fields.len().hash(&mut hasher);
+                            for field in fields.iter() {
+                                field_fingerprint(field, &fingerprints).hash(&mut hasher);
+                            }
+                        }
+                        Self::List(element) => {
+                            field_fingerprint(element, &fingerprints).hash(&mut hasher)
+                        }
+                        _ => unreachable!(),
                     }
                     fingerprints.insert(key, hasher.finish());
                 } else if scheduled.insert(key) {
                     pending.push((ty, true));
-                    pending.extend(fields.iter().rev().map(|field| (field, false)));
+                    match ty {
+                        Self::Tuple(fields) => {
+                            pending.extend(fields.iter().rev().map(|field| (field, false)))
+                        }
+                        Self::List(element) => pending.push((element, false)),
+                        _ => unreachable!(),
+                    }
                 }
             }
         }
@@ -88,9 +115,9 @@ impl Hash for Type {
     }
 }
 
-fn field_fingerprint(ty: &Type, fingerprints: &HashMap<usize, u64>) -> u64 {
-    if let Type::Tuple(fields) = ty {
-        fingerprints[&(Rc::as_ptr(fields) as *const () as usize)]
+fn field_fingerprint(ty: &Type, fingerprints: &HashMap<(u8, usize), u64>) -> u64 {
+    if let Some(key) = aggregate_key(ty) {
+        fingerprints[&key]
     } else {
         let mut hasher = DefaultHasher::new();
         std::mem::discriminant(ty).hash(&mut hasher);
@@ -110,42 +137,75 @@ impl Type {
         Self::Tuple(Rc::from(fields))
     }
 
+    #[must_use]
+    pub fn list(element: Type) -> Self {
+        Self::List(Rc::new(element))
+    }
+
     /// Maximum number of tuple layers along any structural path. Shared
     /// subtrees are visited only once, so `(t, t)` chains stay linear.
     #[must_use]
     pub fn tuple_depth(&self) -> usize {
-        let mut depths = HashMap::<usize, usize>::new();
+        self.aggregate_depth()
+    }
+
+    /// Longest combined List/Tuple structural path, memoized by shared node.
+    #[must_use]
+    pub fn aggregate_depth(&self) -> usize {
+        let mut depths = HashMap::<(u8, usize), usize>::new();
         let mut scheduled = HashSet::new();
         let mut pending = vec![(self, false)];
         while let Some((ty, finishing)) = pending.pop() {
-            let Self::Tuple(fields) = ty else {
+            let Some(key) = aggregate_key(ty) else {
                 continue;
             };
-            let key = Rc::as_ptr(fields) as *const () as usize;
             if depths.contains_key(&key) {
                 continue;
             }
             if finishing {
-                let child_depth = fields
-                    .iter()
-                    .map(|field| match field {
-                        Self::Tuple(children) => {
-                            depths[&(Rc::as_ptr(children) as *const () as usize)]
-                        }
-                        _ => 0,
-                    })
-                    .max()
-                    .unwrap_or(0);
+                let child_depth = match ty {
+                    Self::Tuple(fields) => fields
+                        .iter()
+                        .filter_map(aggregate_key)
+                        .map(|key| depths[&key])
+                        .max()
+                        .unwrap_or(0),
+                    Self::List(element) => aggregate_key(element).map_or(0, |key| depths[&key]),
+                    _ => 0,
+                };
                 depths.insert(key, child_depth.saturating_add(1));
             } else if scheduled.insert(key) {
                 pending.push((ty, true));
-                pending.extend(fields.iter().rev().map(|field| (field, false)));
+                match ty {
+                    Self::Tuple(fields) => {
+                        pending.extend(fields.iter().rev().map(|field| (field, false)))
+                    }
+                    Self::List(element) => pending.push((element, false)),
+                    _ => unreachable!(),
+                }
             }
         }
-        match self {
-            Self::Tuple(fields) => depths[&(Rc::as_ptr(fields) as *const () as usize)],
-            _ => 0,
+        aggregate_key(self).map_or(0, |key| depths[&key])
+    }
+
+    #[must_use]
+    pub fn contains_list(&self) -> bool {
+        let mut pending = vec![self];
+        let mut seen = HashSet::new();
+        while let Some(ty) = pending.pop() {
+            let Some(key) = aggregate_key(ty) else {
+                continue;
+            };
+            if !seen.insert(key) {
+                continue;
+            }
+            match ty {
+                Self::List(_) => return true,
+                Self::Tuple(fields) => pending.extend(fields.iter()),
+                _ => {}
+            }
         }
+        false
     }
 
     #[must_use]
@@ -202,6 +262,14 @@ impl Type {
             Self::String => f.write_str("String"),
             Self::Unit => f.write_str("Unit"),
             Self::Never => f.write_str("Never"),
+            Self::List(element) => {
+                if depth >= 64 {
+                    return f.write_str("<invalid List type>");
+                }
+                f.write_str("List<")?;
+                element.fmt_bounded(f, depth + 1, remaining)?;
+                f.write_str(">")
+            }
             Self::Tuple(fields) => {
                 if depth >= 64 || fields.is_empty() || fields.len() > 64 {
                     return f.write_str("<invalid tuple type>");

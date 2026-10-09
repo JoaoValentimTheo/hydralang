@@ -1,0 +1,2 @@
+fn takes(xs: List<Int>) -> List<Int> { xs }
+fn main() { let xs: List<List<Int>> = [takes([]), [1, 2]] println(xs[1][0]) }

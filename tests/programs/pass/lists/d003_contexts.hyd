@@ -1,0 +1,13 @@
+fn count(xs: List<Int>) -> Int { 4 }
+fn blank() -> List<Int> { [] }
+fn main() {
+    let xs: List<Int> = []
+    let nested: List<List<Int>> = [[], []]
+    let pair: (List<Int>, Bool) = ([], true)
+    let mut assigned: List<Int> = [1]
+    assigned = []
+    println(count([]))
+    println(xs == blank())
+    println(nested[0] == assigned)
+    println(pair.1)
+}

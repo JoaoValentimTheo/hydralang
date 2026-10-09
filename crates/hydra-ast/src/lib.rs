@@ -32,6 +32,7 @@ pub struct TypeExpr {
 #[derive(Clone, Debug)]
 pub enum TypeExprKind {
     Name(String),
+    ListApplication(Vec<TypeExpr>),
     Unit,
     Tuple(Vec<TypeExpr>),
 }
@@ -85,6 +86,11 @@ pub enum ExprKind {
     Literal(Literal),
     Name(String),
     Tuple(Vec<Expr>),
+    List(Vec<Expr>),
+    Index {
+        base: Box<Expr>,
+        index: Box<Expr>,
+    },
     Projection {
         base: Box<Expr>,
         index: usize,

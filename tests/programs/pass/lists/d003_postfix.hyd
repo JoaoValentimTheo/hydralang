@@ -1,0 +1,10 @@
+fn make() -> List<(Int, Bool)> { [(7, true), (9, false),] }
+fn main() {
+    let xs = [3, 4, 5]
+    let i = 2
+    println(xs[0])
+    println(xs[i])
+    println(make()[1].0)
+    let tuple = (make(), true)
+    println(tuple.0[0].1)
+}

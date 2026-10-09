@@ -1,0 +1,1 @@
+fn main() { let catálogo: List<List<Int>> = [[1, 2], [3,]] println(catálogo[0][1]) }

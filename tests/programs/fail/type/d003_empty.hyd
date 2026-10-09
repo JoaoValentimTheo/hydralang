@@ -1,0 +1,4 @@
+fn main() {
+    let valid: List<Int> = []
+    let invalid = []
+}

@@ -189,6 +189,18 @@ fn passing_programs_execute_with_expected_output() {
             "tests/programs/pass/control_flow/d001_assignment.hyd",
             "10\n",
         ),
+        (
+            "tests/programs/pass/lists/d003_contexts.hyd",
+            "4\ntrue\ntrue\ntrue\n",
+        ),
+        (
+            "tests/programs/pass/lists/d003_postfix.hyd",
+            "3\n5\n9\ntrue\n",
+        ),
+        (
+            "tests/programs/pass/lists/d003_snapshot_nan.hyd",
+            "1\n3\nfalse\ntrue\n",
+        ),
     ];
 
     for (path, expected_output) in cases {
@@ -425,6 +437,41 @@ fn negative_compile_programs_report_the_expected_code() {
             "E1101",
             Phase::Parser,
         ),
+        (
+            "tests/programs/fail/type/d003_empty.hyd",
+            "E3015",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d003_heterogeneous.hyd",
+            "E3002",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d003_arity.hyd",
+            "E3017",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d003_non_list_index.hyd",
+            "E3018",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/type/d003_non_int_index.hyd",
+            "E3019",
+            Phase::Type,
+        ),
+        (
+            "tests/programs/fail/parser/d003_index_assignment.hyd",
+            "E1104",
+            Phase::Parser,
+        ),
+        (
+            "tests/programs/fail/parser/d003_unclosed_bracket.hyd",
+            "E1101",
+            Phase::Parser,
+        ),
     ];
 
     for (path, expected_code, expected_phase) in cases {
@@ -477,6 +524,11 @@ fn runtime_failure_programs_report_the_expected_code() {
         ("tests/programs/fail/runtime/missing_main.hyd", "E4001"),
         ("tests/programs/fail/runtime/main_parameters.hyd", "E4002"),
         ("tests/programs/fail/runtime/step_budget.hyd", "E4006"),
+        (
+            "tests/programs/fail/runtime/d003_negative_index.hyd",
+            "E4007",
+        ),
+        ("tests/programs/fail/runtime/d003_empty_index.hyd", "E4007"),
     ];
 
     for (path, expected_code) in cases {

@@ -24,6 +24,7 @@ pub enum Value {
     String(String),
     Unit,
     Tuple(Rc<[Value]>),
+    List(Rc<[Value]>),
 }
 
 impl fmt::Debug for Value {
@@ -35,6 +36,7 @@ impl fmt::Debug for Value {
             Self::String(v) => f.debug_tuple("String").field(v).finish(),
             Self::Unit => f.write_str("Unit"),
             Self::Tuple(v) => f.debug_tuple("Tuple").field(&v.len()).finish(),
+            Self::List(v) => f.debug_tuple("List").field(&v.len()).finish(),
         }
     }
 }
@@ -59,12 +61,13 @@ fn values_equal(
             charge()?;
         }
         match (left, right) {
-            (Value::Tuple(a), Value::Tuple(b)) => {
+            (Value::Tuple(a), Value::Tuple(b)) | (Value::List(a), Value::List(b)) => {
                 charge()?;
                 if a.len() != b.len() {
                     return Ok(false);
                 }
                 let key = (
+                    matches!(left, Value::List(_)),
                     Rc::as_ptr(a) as *const () as usize,
                     Rc::as_ptr(b) as *const () as usize,
                 );
@@ -94,6 +97,7 @@ impl fmt::Display for Value {
             Self::String(value) => f.write_str(value),
             Self::Unit => f.write_str("()"),
             Self::Tuple(_) => f.write_str("<tuple>"),
+            Self::List(_) => f.write_str("<list>"),
         }
     }
 }
@@ -378,6 +382,8 @@ impl<'a> Interpreter<'a> {
                 }
                 Ok(Flow::Value(Value::Tuple(Rc::from(values))))
             }
+            HirExprKind::List(fields) => self.eval_list(expr, fields, frame),
+            HirExprKind::Index { base, index } => self.eval_index(expr, base, index, frame),
             HirExprKind::Projection { base, index } => {
                 if let Type::Tuple(types) = &base.ty {
                     if types.len() > 64
@@ -506,6 +512,114 @@ impl<'a> Interpreter<'a> {
         }
     }
 
+    #[inline(never)]
+    fn eval_list(
+        &mut self,
+        expr: &HirExpr,
+        fields: &[HirExpr],
+        frame: &mut BTreeMap<SymbolId, Value>,
+    ) -> RuntimeResult<Flow> {
+        if fields.len() > 256 {
+            return Err(self.runtime_error(
+                "E9004",
+                "HIR List literal exceeds 256 elements",
+                expr.span,
+            ));
+        }
+        match &expr.ty {
+            Type::List(element)
+                if hir_types_match(&expr.ty, &expr.ty)
+                    && fields
+                        .iter()
+                        .all(|field| hir_types_match(&field.ty, element)) => {}
+            Type::Never => {}
+            _ => {
+                return Err(self.runtime_error(
+                    "E9004",
+                    "HIR List type disagrees with its elements",
+                    expr.span,
+                ));
+            }
+        }
+        let mut values = Vec::new();
+        values
+            .try_reserve(fields.len())
+            .map_err(|_| self.runtime_error("E9004", "List allocation failed", expr.span))?;
+        for field in fields {
+            self.tick(field.span)?;
+            match self.eval_expr(field, frame)? {
+                Flow::Value(value) => {
+                    self.validate_runtime_value_type(&value, &field.ty, field.span)?;
+                    values.push(value);
+                }
+                flow => return Ok(flow),
+            }
+        }
+        if expr.ty == Type::Never {
+            return Err(self.runtime_error(
+                "E9004",
+                "HIR Never List unexpectedly produced a normal value",
+                expr.span,
+            ));
+        }
+        Ok(Flow::Value(Value::List(Rc::from(values))))
+    }
+
+    #[inline(never)]
+    fn eval_index(
+        &mut self,
+        expr: &HirExpr,
+        base: &HirExpr,
+        index: &HirExpr,
+        frame: &mut BTreeMap<SymbolId, Value>,
+    ) -> RuntimeResult<Flow> {
+        match &base.ty {
+            Type::List(element) if hir_types_match(element, &expr.ty) => {}
+            Type::Never if expr.ty == Type::Never => {}
+            Type::List(_) if expr.ty == Type::Never && index.ty == Type::Never => {}
+            _ => {
+                return Err(self.runtime_error(
+                    "E9004",
+                    "HIR index base or result type is inconsistent",
+                    expr.span,
+                ));
+            }
+        }
+        if index.ty != Type::Int && index.ty != Type::Never {
+            return Err(self.runtime_error("E9004", "HIR List index type is not Int", index.span));
+        }
+        let base_value = match self.eval_expr(base, frame)? {
+            Flow::Value(value) => value,
+            flow => return Ok(flow),
+        };
+        if base.ty == Type::Never {
+            return Err(self.runtime_error(
+                "E9004",
+                "HIR Never index base completed normally",
+                base.span,
+            ));
+        }
+        self.validate_runtime_value_type(&base_value, &base.ty, base.span)?;
+        let index_value = match self.eval_expr(index, frame)? {
+            Flow::Value(value) => value,
+            flow => return Ok(flow),
+        };
+        let Value::Int(position) = index_value else {
+            return Err(self.runtime_error("E9004", "HIR index value is not Int", index.span));
+        };
+        let Value::List(values) = base_value else {
+            return Err(self.runtime_error("E9004", "HIR indexed a non-List value", base.span));
+        };
+        let selected = usize::try_from(position)
+            .ok()
+            .and_then(|position| values.get(position));
+        let Some(selected) = selected else {
+            return Err(self.runtime_error("E4007", "List index out of bounds", expr.span));
+        };
+        self.validate_runtime_value_type(selected, &expr.ty, expr.span)?;
+        Ok(Flow::Value(selected.clone()))
+    }
+
     fn eval_unary(&self, op: HirUnaryOp, value: Value, span: Span) -> RuntimeResult<Value> {
         match (op, value) {
             (HirUnaryOp::Negate, Value::Int(value)) => value
@@ -544,22 +658,26 @@ impl<'a> Interpreter<'a> {
         // This is reached after both operands have produced normal values.
         // Valid checked source guarantees their structural type identity.
         if matches!(op, HirBinaryOp::Equal | HirBinaryOp::NotEqual)
-            && (matches!(left.ty, Type::Tuple(_))
-                || matches!(right.ty, Type::Tuple(_))
-                || matches!(left_value, Value::Tuple(_))
-                || matches!(right_value, Value::Tuple(_)))
-            && (!matches!((&left.ty, &right.ty), (Type::Tuple(_), Type::Tuple(_)))
-                || !hir_types_match(&left.ty, &right.ty)
+            && (matches!(left.ty, Type::Tuple(_) | Type::List(_))
+                || matches!(right.ty, Type::Tuple(_) | Type::List(_))
+                || matches!(left_value, Value::Tuple(_) | Value::List(_))
+                || matches!(right_value, Value::Tuple(_) | Value::List(_)))
+            && (!matches!(
+                (&left.ty, &right.ty),
+                (Type::Tuple(_), Type::Tuple(_)) | (Type::List(_), Type::List(_))
+            ) || !hir_types_match(&left.ty, &right.ty)
                 || !matches!(result_ty, Type::Bool))
         {
             return Err(self.runtime_error(
                 "E9004",
-                "HIR tuple equality requires matching static tuple types",
+                "HIR aggregate equality requires matching static types",
                 span,
             ));
         }
-        if matches!((&left.ty, &right.ty), (Type::Tuple(_), Type::Tuple(_)))
-            && matches!(op, HirBinaryOp::Equal | HirBinaryOp::NotEqual)
+        if matches!(
+            (&left.ty, &right.ty),
+            (Type::Tuple(_), Type::Tuple(_)) | (Type::List(_), Type::List(_))
+        ) && matches!(op, HirBinaryOp::Equal | HirBinaryOp::NotEqual)
         {
             self.validate_runtime_value_type(&left_value, &left.ty, span)?;
             self.validate_runtime_value_type(&right_value, &right.ty, span)?;
@@ -577,12 +695,16 @@ impl<'a> Interpreter<'a> {
     ) -> RuntimeResult<Value> {
         use HirBinaryOp as Op;
         if matches!(op, Op::Equal | Op::NotEqual)
-            && (matches!(left, Value::Tuple(_)) || matches!(right, Value::Tuple(_)))
+            && (matches!(left, Value::Tuple(_) | Value::List(_))
+                || matches!(right, Value::Tuple(_) | Value::List(_)))
         {
-            if !matches!((&left, &right), (Value::Tuple(_), Value::Tuple(_))) {
+            if !matches!(
+                (&left, &right),
+                (Value::Tuple(_), Value::Tuple(_)) | (Value::List(_), Value::List(_))
+            ) {
                 return Err(self.runtime_error(
                     "E9004",
-                    "typed HIR tuple equality requires two tuples",
+                    "typed HIR aggregate equality requires matching aggregate variants",
                     span,
                 ));
             }
@@ -657,8 +779,8 @@ impl<'a> Interpreter<'a> {
                         span,
                     ));
                 };
-                if matches!(value, Value::Tuple(_)) {
-                    return Err(self.runtime_error("E9004", "HIR cannot print a tuple", span));
+                if matches!(value, Value::Tuple(_) | Value::List(_)) {
+                    return Err(self.runtime_error("E9004", "HIR cannot print an aggregate", span));
                 }
                 let _ = write!(self.output, "{value}");
                 Ok(Value::Unit)
@@ -671,8 +793,8 @@ impl<'a> Interpreter<'a> {
                         span,
                     ));
                 };
-                if matches!(value, Value::Tuple(_)) {
-                    return Err(self.runtime_error("E9004", "HIR cannot print a tuple", span));
+                if matches!(value, Value::Tuple(_) | Value::List(_)) {
+                    return Err(self.runtime_error("E9004", "HIR cannot print an aggregate", span));
                 }
                 let _ = writeln!(self.output, "{value}");
                 Ok(Value::Unit)
@@ -704,23 +826,43 @@ impl<'a> Interpreter<'a> {
         ty: &Type,
         span: Span,
     ) -> RuntimeResult<()> {
+        // Even empty Lists must validate their declared element-type depth;
+        // inspecting runtime children alone cannot see that type subtree.
+        if !hir_types_match(ty, ty) {
+            return Err(self.runtime_error("E9004", "runtime aggregate type exceeds bounds", span));
+        }
         let mut pending = vec![(value, ty, 0_usize)];
         let mut seen = HashSet::new();
         while let Some((value, ty, depth)) = pending.pop() {
             match (value, ty) {
-                (Value::Tuple(values), Type::Tuple(types)) => {
-                    if depth >= 64
-                        || values.is_empty()
-                        || values.len() > 64
-                        || values.len() != types.len()
-                    {
+                (Value::Tuple(values), Type::Tuple(_)) | (Value::List(values), Type::List(_)) => {
+                    if depth >= 64 || values.len() > 256 {
                         return Err(self.runtime_error(
                             "E9004",
-                            "runtime tuple shape disagrees with its HIR type",
+                            "runtime aggregate exceeds bounds",
+                            span,
+                        ));
+                    }
+                    let (valid, child_types): (bool, Vec<&Type>) = match (value, ty) {
+                        (Value::Tuple(_), Type::Tuple(types)) => (
+                            !values.is_empty() && values.len() <= 64 && values.len() == types.len(),
+                            types.iter().collect(),
+                        ),
+                        (Value::List(_), Type::List(element)) => (
+                            true,
+                            std::iter::repeat_n(element.as_ref(), values.len()).collect(),
+                        ),
+                        _ => (false, Vec::new()),
+                    };
+                    if !valid {
+                        return Err(self.runtime_error(
+                            "E9004",
+                            "runtime aggregate shape disagrees with its HIR type",
                             span,
                         ));
                     }
                     let key = (
+                        matches!(value, Value::List(_)),
                         Rc::as_ptr(values) as *const () as usize,
                         ty as *const Type as usize,
                         // The same shared pair can be reached through paths
@@ -729,7 +871,7 @@ impl<'a> Interpreter<'a> {
                         depth,
                     );
                     if seen.insert(key) {
-                        for (field, field_ty) in values.iter().zip(types.iter()).rev() {
+                        for (field, field_ty) in values.iter().zip(child_types).rev() {
                             self.tick(span)?;
                             pending.push((field, field_ty, depth + 1));
                         }
@@ -784,6 +926,15 @@ fn hir_types_match(left: &Type, right: &Type) -> bool {
                     pending.extend(a.iter().zip(b.iter()).map(|(x, y)| (x, y, depth + 1)));
                 }
             }
+            (Type::List(a), Type::List(b)) => {
+                if depth >= 64 {
+                    return false;
+                }
+                let key = (Rc::as_ptr(a) as usize, Rc::as_ptr(b) as usize, depth);
+                if seen.insert(key) {
+                    pending.push((a, b, depth + 1));
+                }
+            }
             (Type::Int, Type::Int)
             | (Type::Float, Type::Float)
             | (Type::Bool, Type::Bool)
@@ -820,6 +971,162 @@ mod tests {
 
     fn tuple(fields: Vec<Value>) -> Value {
         Value::Tuple(Rc::from(fields))
+    }
+
+    fn list(fields: Vec<Value>) -> Value {
+        Value::List(Rc::from(fields))
+    }
+
+    #[test]
+    fn malformed_list_hir_rejects_invalid_values_shapes_and_index_types() {
+        use std::collections::BTreeMap;
+
+        let span = Span::new(SourceId::new(21), 4, 22);
+        let program = HirProgram { functions: vec![] };
+        let mut vm = Interpreter::new(&program);
+        let mut frame = BTreeMap::new();
+        frame.insert(SymbolId(1), list(vec![Value::Int(1), Value::Bool(true)]));
+
+        let local = || HirExpr {
+            kind: HirExprKind::Local(SymbolId(1)),
+            ty: Type::list(Type::Int),
+            span,
+        };
+        let index = HirExpr {
+            kind: HirExprKind::Index {
+                base: Box::new(local()),
+                index: Box::new(literal_int(0, span)),
+            },
+            ty: Type::Int,
+            span,
+        };
+        let error = match vm.eval_expr(&index, &mut frame) {
+            Err(error) => error,
+            Ok(_) => panic!("corrupt unselected List element escaped validation"),
+        };
+        assert_eq!(error.code, "E9004");
+        assert_eq!(error.primary, span);
+
+        for expr in [
+            HirExpr {
+                kind: HirExprKind::List(vec![literal_int(1, span)]),
+                ty: Type::list(Type::Bool),
+                span,
+            },
+            HirExpr {
+                kind: HirExprKind::List(vec![literal_int(1, span); 257]),
+                ty: Type::list(Type::Int),
+                span,
+            },
+            HirExpr {
+                kind: HirExprKind::Index {
+                    base: Box::new(HirExpr {
+                        kind: HirExprKind::List(vec![literal_int(1, span)]),
+                        ty: Type::list(Type::Int),
+                        span,
+                    }),
+                    index: Box::new(HirExpr {
+                        kind: HirExprKind::Literal(HirLiteral::Bool(true)),
+                        ty: Type::Bool,
+                        span,
+                    }),
+                },
+                ty: Type::Int,
+                span,
+            },
+        ] {
+            let error = execute(&program_with_tail(expr)).diagnostics;
+            assert_eq!(error.len(), 1);
+            assert_eq!(error[0].code, "E9004");
+            assert_eq!(error[0].primary, span);
+        }
+    }
+
+    #[test]
+    fn malformed_empty_list_type_depth_is_rejected_even_without_elements() {
+        use std::collections::BTreeMap;
+
+        let span = Span::new(SourceId::new(21), 4, 22);
+        let program = HirProgram { functions: vec![] };
+        let mut vm = Interpreter::new(&program);
+        let mut frame = BTreeMap::new();
+        let mut ty = Type::Int;
+        for _ in 0..64 {
+            ty = Type::list(ty);
+        }
+        let valid = HirExpr {
+            kind: HirExprKind::List(vec![]),
+            ty: ty.clone(),
+            span,
+        };
+        assert!(matches!(
+            vm.eval_expr(&valid, &mut frame),
+            Ok(super::Flow::Value(Value::List(_)))
+        ));
+        assert!(
+            vm.validate_runtime_value_type(&list(vec![]), &ty, span)
+                .is_ok()
+        );
+
+        let invalid_ty = Type::list(ty);
+        let invalid = HirExpr {
+            kind: HirExprKind::List(vec![]),
+            ty: invalid_ty.clone(),
+            span,
+        };
+        let error = match vm.eval_expr(&invalid, &mut frame) {
+            Err(error) => error,
+            Ok(_) => panic!("invalid HIR depth 65 must be rejected"),
+        };
+        assert_eq!(error.code, "E9004");
+        assert_eq!(error.primary, span);
+
+        let error = vm
+            .validate_runtime_value_type(&list(vec![]), &invalid_ty, span)
+            .expect_err("empty List value must not conceal a type deeper than 64");
+        assert_eq!(error.code, "E9004");
+        assert_eq!(error.primary, span);
+    }
+
+    #[test]
+    fn mixed_list_tuple_shared_dags_remain_linear_and_preserve_nan() {
+        let mut left = list(vec![Value::Int(9)]);
+        let mut right = list(vec![Value::Int(9)]);
+        let mut unequal = list(vec![Value::Int(8)]);
+        for depth in 1..=64 {
+            let wrap = |value: Value| {
+                if depth % 2 == 0 {
+                    list(vec![value.clone(), value])
+                } else {
+                    tuple(vec![value.clone(), value])
+                }
+            };
+            left = wrap(left);
+            right = wrap(right);
+            unequal = wrap(unequal);
+        }
+        let mut work = 0;
+        assert!(
+            values_equal(&left, &right, || {
+                work += 1;
+                Ok(())
+            })
+            .unwrap()
+        );
+        assert!(work < 600, "mixed shared DAG expanded: {work}");
+        let mut work = 0;
+        assert!(
+            !values_equal(&left, &unequal, || {
+                work += 1;
+                Ok(())
+            })
+            .unwrap()
+        );
+        assert!(work < 600, "mixed unequal DAG expanded: {work}");
+
+        let leaf = list(vec![Value::Float(f64::NAN)]);
+        let shared = tuple(vec![leaf.clone(), leaf]);
+        assert_ne!(shared, shared.clone());
     }
 
     fn program_with_tail(tail: HirExpr) -> HirProgram {

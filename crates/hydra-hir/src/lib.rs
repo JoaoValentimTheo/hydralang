@@ -72,6 +72,11 @@ pub enum HirExprKind {
     Literal(HirLiteral),
     Local(SymbolId),
     Tuple(Vec<HirExpr>),
+    List(Vec<HirExpr>),
+    Index {
+        base: Box<HirExpr>,
+        index: Box<HirExpr>,
+    },
     Projection {
         base: Box<HirExpr>,
         index: usize,

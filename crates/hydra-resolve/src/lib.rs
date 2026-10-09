@@ -180,10 +180,14 @@ impl Resolver {
     fn resolve_expr(&mut self, expr: &Expr) {
         match &expr.kind {
             ExprKind::Literal(_) => {}
-            ExprKind::Tuple(elements) => {
+            ExprKind::Tuple(elements) | ExprKind::List(elements) => {
                 for element in elements {
                     self.resolve_expr(element);
                 }
+            }
+            ExprKind::Index { base, index } => {
+                self.resolve_expr(base);
+                self.resolve_expr(index);
             }
             ExprKind::Projection { base, .. } => self.resolve_expr(base),
             ExprKind::Name(name) => {

@@ -11,6 +11,7 @@ const MAX_PARSE_DEPTH: usize = 128;
 const MAX_EXPR_DEPTH: usize = 256;
 const MAX_TUPLE_ARITY: usize = 64;
 const MAX_TUPLE_TYPE_NESTING: usize = 64;
+const MAX_LIST_ELEMENTS: usize = 256;
 
 #[derive(Debug)]
 pub struct ParseResult {
@@ -122,12 +123,55 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_type(&mut self) -> Option<TypeExpr> {
-        self.with_depth(|parser| parser.parse_type_inner())
+        let ty = self.with_depth(|parser| parser.parse_type_inner())?;
+        let mut pending = vec![(&ty, 0_usize)];
+        while let Some((node, depth)) = pending.pop() {
+            let next = match &node.kind {
+                TypeExprKind::ListApplication(args) => {
+                    pending.extend(args.iter().map(|arg| (arg, depth + 1)));
+                    depth + 1
+                }
+                TypeExprKind::Tuple(fields) => {
+                    pending.extend(fields.iter().map(|field| (field, depth + 1)));
+                    depth + 1
+                }
+                _ => depth,
+            };
+            if next > MAX_TUPLE_TYPE_NESTING {
+                self.error("E1105", "aggregate type nesting exceeds 64", node.span);
+                return None;
+            }
+        }
+        Some(ty)
     }
 
     fn parse_type_inner(&mut self) -> Option<TypeExpr> {
         if !self.at(&TokenKind::LeftParen) {
             let (name, span) = self.expect_identifier("expected type name")?;
+            if name == "List" && self.consume(&TokenKind::Less) {
+                self.skip_newlines();
+                let mut arguments = Vec::new();
+                if !self.at(&TokenKind::Greater) {
+                    loop {
+                        arguments.push(self.parse_type()?);
+                        self.skip_newlines();
+                        if !self.consume(&TokenKind::Comma) {
+                            break;
+                        }
+                        self.skip_newlines();
+                        if self.at(&TokenKind::Greater) {
+                            break;
+                        }
+                    }
+                }
+                let end = self
+                    .expect(&TokenKind::Greater, "expected `>` after List type")?
+                    .span;
+                return Some(TypeExpr {
+                    kind: TypeExprKind::ListApplication(arguments),
+                    span: span.join(end).unwrap_or(span),
+                });
+            }
             return Some(TypeExpr {
                 kind: TypeExprKind::Name(name),
                 span,
@@ -171,16 +215,6 @@ impl<'a> Parser<'a> {
             .expect(&TokenKind::RightParen, "expected `)` after tuple type")?
             .span;
         let span = open.join(close).unwrap_or(open);
-        let mut stack: Vec<(&TypeExpr, usize)> = elements.iter().map(|t| (t, 1)).collect();
-        while let Some((ty, depth)) = stack.pop() {
-            if depth > MAX_TUPLE_TYPE_NESTING {
-                self.error("E1105", "tuple type nesting exceeds 64", ty.span);
-                return None;
-            }
-            if let TypeExprKind::Tuple(fields) = &ty.kind {
-                stack.extend(fields.iter().map(|child| (child, depth + 1)));
-            }
-        }
         Some(TypeExpr {
             kind: TypeExprKind::Tuple(elements),
             span,
@@ -363,6 +397,30 @@ impl<'a> Parser<'a> {
                 continue;
             }
 
+            if self.at(&TokenKind::LeftBracket) {
+                if 21 < min_binding_power {
+                    break;
+                }
+                self.advance();
+                let index = self.parse_expr(0)?;
+                self.skip_newlines();
+                let close = self
+                    .expect(&TokenKind::RightBracket, "expected `]` after index")?
+                    .span;
+                let span = left.span.join(close).unwrap_or(left.span);
+                left = Expr {
+                    kind: ExprKind::Index {
+                        base: Box::new(left),
+                        index: Box::new(index),
+                    },
+                    span,
+                };
+                if !self.expression_depth_within_limit(&left) {
+                    return None;
+                }
+                continue;
+            }
+
             if self.at(&TokenKind::Equal) {
                 let (left_power, right_power) = (1, 1);
                 if left_power < min_binding_power {
@@ -430,7 +488,13 @@ impl<'a> Parser<'a> {
             let child_depth = depth + 1;
             match &expr.kind {
                 ExprKind::Unary { operand, .. } => stack.push((operand, child_depth)),
-                ExprKind::Tuple(fields) => stack.extend(fields.iter().map(|e| (e, child_depth))),
+                ExprKind::Tuple(fields) | ExprKind::List(fields) => {
+                    stack.extend(fields.iter().map(|e| (e, child_depth)));
+                }
+                ExprKind::Index { base, index } => {
+                    stack.push((base, child_depth));
+                    stack.push((index, child_depth));
+                }
                 ExprKind::Projection { base, .. } => stack.push((base, child_depth)),
                 ExprKind::Binary { left, right, .. } => {
                     stack.push((left, child_depth));
@@ -555,6 +619,38 @@ impl<'a> Parser<'a> {
                 let close = self.expect(&TokenKind::RightParen, "expected `)`")?.span;
                 expr.span = token.span.join(close).unwrap_or(expr.span);
                 Some(expr)
+            }
+            TokenKind::LeftBracket => {
+                self.skip_newlines();
+                let mut elements = Vec::new();
+                if !self.at(&TokenKind::RightBracket) {
+                    loop {
+                        if elements.len() == MAX_LIST_ELEMENTS {
+                            self.error(
+                                "E1101",
+                                "List literal exceeds 256 elements",
+                                self.peek().span,
+                            );
+                            return None;
+                        }
+                        elements.push(self.parse_expr(0)?);
+                        self.skip_newlines();
+                        if !self.consume(&TokenKind::Comma) {
+                            break;
+                        }
+                        self.skip_newlines();
+                        if self.at(&TokenKind::RightBracket) {
+                            break;
+                        }
+                    }
+                }
+                let close = self
+                    .expect(&TokenKind::RightBracket, "expected `]` after List")?
+                    .span;
+                Some(Expr {
+                    kind: ExprKind::List(elements),
+                    span: token.span.join(close).unwrap_or(token.span),
+                })
             }
             TokenKind::If => self.parse_if(token.span),
             TokenKind::LeftBrace => {
