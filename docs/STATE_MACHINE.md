@@ -103,7 +103,7 @@ source tuple/type/projection syntax
 
 The D002 runtime additionally checks each function argument against its declared HIR parameter type before binding and checks a normal function result against the declared return type after restoring call depth. Tuple shape and nested fields are checked iteratively with existing fuel; malformed HIR returns source-spanned E9004 instead of silently carrying a wrongly typed aggregate across the function boundary.
 
-Acceptance of D002 defines the locked transition obligations. D002 source, integration and runtime regression tests now exercise them; remaining validation and publication gates are recorded in `HYDRA_0_2_D002_IMPLEMENTATION.md`. Frozen D001 behavior, parser state guards, per-function resets, runtime call-depth restoration and diagnostic unwinding retain their required semantics. D002 remains unfrozen.
+Acceptance of D002 defines the locked transition obligations. D002 source, integration and runtime regression tests now exercise them; original implementation validation is recorded in `HYDRA_0_2_D002_IMPLEMENTATION.md`, and the subsequent independent adversarial audit in `HYDRA_0_2_D002_AUDIT_AND_FREEZE.md`. Frozen D001 behavior, parser state guards, per-function resets, runtime call-depth restoration and diagnostic unwinding retain their required semantics. The D002 technical freeze becomes effective only on five successful GitHub Actions jobs for the exact final audit/freeze commit SHA; until that verification, D002 is audited but unfrozen.
 
 ## Function-call lifecycle
 
